@@ -16,24 +16,42 @@ neighbour is still coiled in reserve or already committed.
 
 ## State of the build
 
-Done and tested:
-
 | | |
 |---|---|
-| `engine/` | the rules — deterministic, dependency-free, 49 tests |
+| `engine/` | the rules — deterministic, dependency-free |
+| `server.py` | online multiplayer: rooms, seats, the round clock, fog |
+| `web/index.html` | the browser client |
 | `sim.py` | headless match runner and balance harness |
+| `tests/` | 62 tests, engine and server |
 
-Not built yet: the server, the browser client, the draft flow, signals over
-the wire. The engine comes first on purpose — if the game is not interesting
-in `sim.py` it will not become interesting once it has buttons.
+Not built yet: the order-of-battle draft (armies use a fixed book list), and
+reconnecting to a seat you dropped out of.
 
-## Run it
+## Play it
 
 ```bash
-python3 sim.py                  # one match, round by round
-python3 sim.py --seed 7         # a different map
-python3 sim.py --batch 400      # balance across many matches
-python3 -m unittest discover -s tests -v
+python3 server.py
+```
+
+Then open **http://localhost:8000**. Press *HOST A ROOM*, then *BEGIN THE
+CAMPAIGN* — you are playing immediately, commanding one brigade with bots
+holding the other nine seats.
+
+To play with other people, share the five-letter room code. Anyone on the
+same network opens the address the server prints on startup, types the code,
+and clicks an open seat. Every seat nobody takes stays under a bot, so you
+never need a particular number of people to start.
+
+Each round you pick one of the nine orders (keys `1`–`9`), click the region
+you mean, and press *COMMIT* (or `Enter`). When the clock runs out — or
+every human has committed — all the orders land at once. `Esc` clears a
+half-made order.
+
+```bash
+PORT=9000 COMPACT_PLAN=90 python3 server.py    # a longer planning window
+python3 sim.py                                  # bots only, in the terminal
+python3 sim.py --batch 400                      # balance across many matches
+python3 -m unittest discover -s tests           # the whole suite
 ```
 
 No dependencies. Python 3.8+.
@@ -165,10 +183,20 @@ tie broken by the lower id:
 Equal weight now means a stand-off: contested ground, nobody takes it. Side
 bias went from 45/55 to 37/38 with every draw accounted for.
 
+## The server
+
+Zero dependencies means the HTTP and WebSocket protocols are both implemented
+in `server.py` — handshake, framing, masking and all — so the project runs
+from a clone with nothing installed.
+
+The server is authoritative about everything, and **the fog is applied on the
+server**, not in the browser. A region you have not scouted is not sitting in
+your tab waiting to be read out of memory by anyone who opens the console.
+`tests/test_server.py` asserts exactly that, over a real socket.
+
 ## Next
 
 1. Tune the Pioneers dependency out of being compulsory.
-2. Zero-dependency asyncio WebSocket server: rooms, seats, the 60-second
-   planning window, bots filling empty seats.
-3. Browser client, built from the gameplay mockup.
-4. The order-of-battle draft, and signals over the wire.
+2. The order-of-battle draft, so armies are chosen rather than issued.
+3. Reconnecting to a seat after a dropped connection.
+4. A spectator view for a big screen.

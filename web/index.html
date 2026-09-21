@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Iron Compact</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#0e1319; --panel:#161d27; --panel2:#1d2734; --panel3:#24303f;
+  --line:#2a3644; --line2:#3a4a5e; --text:#e9e5db; --dim:#9db0c2; --dim2:#879aad;
+  --brass:#c9a227; --brass2:#e6c45c; --az:#5aa9e6; --cr:#e0675a;
+  --green:#5fd4a8; --warn:#e8a13a;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  --serif:Spectral,Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--ink);color:var(--text);
+  font:14px/1.45 'IBM Plex Sans',system-ui,sans-serif;overflow:hidden}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.mono{font-family:var(--mono)}
+#app{display:flex;flex-direction:column;height:100%}
+
+/* ---- top bar ---- */
+#top{height:56px;flex-shrink:0;display:flex;align-items:center;gap:18px;
+  padding:0 18px;background:var(--panel);border-bottom:1px solid var(--line)}
+#wordmark{font-family:var(--serif);font-size:15px;font-weight:600;
+  letter-spacing:2.2px;color:var(--brass2);white-space:nowrap}
+#roundBox{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--dim2)}
+#roundBox b{color:var(--text);font-size:14px}
+#phaseWrap{flex:1;display:flex;align-items:center;gap:10px;max-width:380px}
+#phase{font-family:var(--mono);font-size:11px;letter-spacing:2.2px;color:var(--brass)}
+#timerBar{flex:1;height:5px;background:var(--panel3);border-radius:3px;overflow:hidden}
+#timerFill{height:100%;width:100%;background:var(--brass);transition:width .3s linear}
+#timer{font-family:var(--mono);font-size:17px;font-weight:600;
+  font-variant-numeric:tabular-nums;min-width:46px;text-align:right}
+.track{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;
+  letter-spacing:1.2px}
+.trackBar{width:52px;height:4px;background:var(--panel3);border-radius:2px;overflow:hidden}
+#codeChip{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--brass2);
+  background:rgba(201,162,39,.12);border-radius:4px;padding:5px 10px}
+
+/* ---- body ---- */
+#body{flex:1;display:flex;min-height:0}
+.rail{width:262px;flex-shrink:0;background:var(--panel);padding:14px;
+  display:flex;flex-direction:column;gap:13px;overflow-y:auto}
+#left{border-right:1px solid var(--line)}
+#right{width:290px;border-left:1px solid var(--line)}
+.head{display:flex;align-items:center;gap:8px;padding-bottom:6px;
+  border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;
+  letter-spacing:1.9px;color:var(--brass)}
+.head .sp{flex:1}
+.chip{font-family:var(--mono);font-size:9px;letter-spacing:1.1px;padding:3px 6px;
+  border-radius:3px;white-space:nowrap}
+.kv{display:flex;align-items:baseline;gap:8px;font-size:11.5px}
+.kv span:first-child{font-family:var(--mono);font-size:8.5px;letter-spacing:1.1px;
+  color:var(--dim2);width:78px;flex-shrink:0}
+.bar{height:5px;background:var(--panel3);border-radius:3px;overflow:hidden}
+.bar>div{height:100%}
+#mapWrap{flex:1;min-width:0;position:relative;display:flex;align-items:center;
+  justify-content:center}
+canvas{display:block}
+#hint{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:1.3px;color:var(--brass2);
+  background:rgba(12,19,25,.92);border:1px solid var(--line2);border-radius:5px;
+  padding:7px 14px;pointer-events:none;opacity:0;transition:opacity .2s}
+#hint.on{opacity:1}
+
+/* ---- brigade card ---- */
+#brigCard{background:linear-gradient(160deg,rgba(90,169,230,.12),rgba(90,169,230,.03));
+  border:1px solid rgba(90,169,230,.3);border-radius:6px;padding:11px 12px}
+#brigName{font-family:var(--serif);font-size:16px;font-weight:600}
+#brigSub{font-family:var(--mono);font-size:8.5px;letter-spacing:1.1px;color:var(--dim2);
+  margin-top:2px}
+
+/* ---- army rows ---- */
+.arow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-left:2px solid transparent;
+  border-radius:0 4px 4px 0}
+.arow.me{background:rgba(90,169,230,.08);border-left-color:var(--az)}
+.arow .nm{font-size:11.5px;font-weight:600}
+.arow .st{font-family:var(--mono);font-size:9.5px;color:var(--dim2)}
+.arow .str{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--az)}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* ---- orders ---- */
+#orders{height:142px;flex-shrink:0;background:var(--panel);
+  border-top:1px solid var(--line);padding:10px 18px;display:flex;
+  flex-direction:column;gap:9px}
+#orderLine{display:flex;align-items:center;gap:12px;min-height:20px}
+#orderVerb{font-family:var(--mono);font-size:10px;letter-spacing:1.8px;color:var(--brass)}
+#orderText{font-size:12px;color:var(--dim)}
+#orderText b{color:var(--brass2)}
+#verbs{display:flex;align-items:stretch;gap:7px;flex:1}
+.verb{width:96px;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  transition:border-color .12s,background .12s}
+.verb:hover:not(.off){border-color:var(--dim2)}
+.verb.on{background:rgba(201,162,39,.14);border-color:var(--brass)}
+.verb.off{opacity:.4;cursor:not-allowed}
+.verb .vn{font-family:var(--mono);font-size:9px;letter-spacing:1.1px}
+.verb .vc{font-family:var(--mono);font-size:8px;color:var(--dim2)}
+.verb.on .vn,.verb.on .vc{color:var(--brass2)}
+#commit{flex-shrink:0;background:var(--brass);color:#10161d;border-radius:6px;
+  padding:0 26px;font-family:var(--mono);font-size:12px;font-weight:600;
+  letter-spacing:2px}
+#commit:disabled{background:var(--panel3);color:var(--dim2);cursor:default}
+#sigRow{display:flex;gap:5px}
+.sig{flex:1;border:1px solid var(--line2);border-radius:4px;padding:6px 0;
+  font-family:var(--mono);font-size:8.5px;letter-spacing:1px}
+.sig.on{background:rgba(201,162,39,.14);border-color:var(--brass)}
+
+/* ---- overlay ---- */
+#veil{position:fixed;inset:0;background:rgba(8,12,17,.93);display:flex;
+  align-items:center;justify-content:center;z-index:20;padding:20px}
+#veil.off{display:none}
+#card{width:min(560px,100%);background:var(--panel);border:1px solid var(--line2);
+  border-radius:10px;padding:26px 28px;max-height:90vh;overflow-y:auto}
+#card h1{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:2px;
+  color:var(--brass2)}
+#card p{font-size:12.5px;color:var(--dim);margin-top:8px;line-height:1.6}
+.field{display:flex;gap:8px;margin-top:16px}
+input{flex:1;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;
+  padding:11px 12px;color:var(--text);font:inherit;outline:none}
+input:focus{border-color:var(--brass)}
+input.code{font-family:var(--mono);letter-spacing:3px;text-transform:uppercase}
+.btn{background:var(--brass);color:#10161d;border-radius:5px;padding:11px 20px;
+  font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:1.6px}
+.btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--dim)}
+#seatGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+.seat{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:4px;
+  border-left:2px solid var(--line2);background:rgba(255,255,255,.025);
+  font-size:11.5px;text-align:left;width:100%}
+.seat.free{border-left-style:dashed;color:var(--dim2)}
+.seat.mine{border-left-color:var(--az);background:rgba(90,169,230,.1)}
+.colHead{font-family:var(--mono);font-size:9.5px;letter-spacing:1.8px;
+  padding-bottom:7px;border-bottom:1px solid var(--line);margin-bottom:8px}
+#err{color:var(--cr);font-size:12px;margin-top:12px;min-height:16px}
+#log{margin-top:4px;display:flex;flex-direction:column;gap:5px}
+.ev{font-size:11px;color:var(--dim);line-height:1.4;padding-left:8px;
+  border-left:2px solid var(--line2)}
+.ev b{color:var(--text)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <span id="wordmark">THE IRON COMPACT</span>
+    <span id="codeChip">—</span>
+    <span id="roundBox">ROUND <b id="rnd">1</b> / <span id="maxRnd">15</span></span>
+    <div id="phaseWrap">
+      <span id="phase">LOBBY</span>
+      <div id="timerBar"><div id="timerFill"></div></div>
+      <span id="timer">—</span>
+    </div>
+    <div id="tracks" style="display:flex;gap:16px"></div>
+  </div>
+
+  <div id="body">
+    <div class="rail" id="left">
+      <div class="head">YOUR BRIGADE</div>
+      <div id="brigCard">
+        <div id="brigName">—</div>
+        <div id="brigSub">not seated</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-top:9px">
+          <span class="mono" style="font-size:8.5px;letter-spacing:1.1px;color:var(--dim2)">STRENGTH</span>
+          <span class="mono" id="brigStr" style="font-size:17px;font-weight:600;color:var(--az)">—</span>
+          <span class="mono" id="brigMax" style="font-size:11px;color:var(--dim2)"></span>
+        </div>
+        <div class="bar" style="margin-top:5px"><div id="brigBar" style="width:0;background:var(--az)"></div></div>
+        <div id="brigStats" style="margin-top:10px;padding-top:9px;
+          border-top:1px solid rgba(90,169,230,.2);display:flex;flex-direction:column;gap:5px"></div>
+      </div>
+      <div class="head">THE GROUND<span class="sp"></span><span class="chip" id="groundChip"
+        style="color:var(--brass);background:rgba(201,162,39,.12)">NONE</span></div>
+      <div id="ground" style="display:flex;flex-direction:column;gap:5px"></div>
+      <div class="head">LAST ROUND</div>
+      <div id="log"></div>
+    </div>
+
+    <div id="mapWrap">
+      <canvas id="map"></canvas>
+      <div id="hint"></div>
+    </div>
+
+    <div class="rail" id="right">
+      <div class="head">THE ARMY<span class="sp"></span><span class="chip" id="readyChip"
+        style="color:var(--brass);background:rgba(201,162,39,.12)">—</span></div>
+      <div id="army" style="display:flex;flex-direction:column;gap:2px"></div>
+      <div class="head">SIGNALS<span class="sp"></span><span class="chip" id="sigLeft"
+        style="color:var(--dim2);background:rgba(135,154,173,.12)">3 LEFT</span></div>
+      <div id="sigLog" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="sigRow">
+        <button class="sig" data-sig="ATTACK" style="color:var(--cr)">ATTACK</button>
+        <button class="sig" data-sig="DEFEND" style="color:var(--az)">DEFEND</button>
+        <button class="sig" data-sig="DANGER" style="color:var(--warn)">DANGER</button>
+        <button class="sig" data-sig="NEED" style="color:var(--brass2)">NEED</button>
+      </div>
+      <div style="font-size:10px;color:var(--dim2);line-height:1.45">
+        Three signals a round, four words between them. Where your brigade stands
+        is the rest of what your army can read.
+      </div>
+    </div>
+  </div>
+
+  <div id="orders">
+    <div id="orderLine">
+      <span id="orderVerb">NO ORDER</span>
+      <span id="orderText">Pick an order, then click the ground you mean.</span>
+    </div>
+    <div style="display:flex;gap:8px;flex:1">
+      <div id="verbs"></div>
+      <button id="commit" disabled>COMMIT</button>
+    </div>
+  </div>
+</div>
+
+<div id="veil">
+  <div id="card">
+    <h1>THE IRON COMPACT</h1>
+    <p>You command one brigade of five. Everyone plans at once and commits
+       blind — no turn order, and no chat. Every seat nobody takes is
+       commanded by a bot, so this works alone or with nine friends.</p>
+    <div id="setup">
+      <div class="field">
+        <input id="nameIn" placeholder="Your name" maxlength="16">
+      </div>
+      <div class="field">
+        <button class="btn" id="hostBtn">HOST A ROOM</button>
+        <input id="codeIn" class="code" placeholder="CODE" maxlength="5">
+        <button class="btn ghost" id="joinBtn">JOIN</button>
+      </div>
+    </div>
+    <div id="lobby" style="display:none">
+      <div id="seatGrid"></div>
+      <div class="field" style="margin-top:20px">
+        <button class="btn" id="startBtn" style="flex:1">BEGIN THE CAMPAIGN</button>
+      </div>
+    </div>
+    <div id="err"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const ORDER_DEFS = [
+  ["ADVANCE","1",true,  "Move to a neighbouring region."],
+  ["ASSAULT","3",true,  "Take defended ground. You commit before you see theirs."],
+  ["HOLD","0",false,    "Dig in. Strong, and you go nowhere."],
+  ["SCREEN","1",true,   "Deny the ground without a battle."],
+  ["SUPPLY","2",false,  "Pioneers only: build a depot or raise fieldworks."],
+  ["FORAGE","0",false,  "Feed off the land. The region remembers."],
+  ["RECON","1",true,    "Buy vision. Push the fog back."],
+  ["PARLEY","2",true,   "Court a neutral region."],
+  ["RESERVE","0",false, "Commit nothing. Counter-attack at full weight."],
+];
+const TERRAIN_FILL = {
+  PLAIN:"#19212c", WOOD:"#18251f", HILL:"#232c35",
+  FORD:"#16242f", MOUNTAIN:"#212a35", WATER:"#101a26"
+};
+const SIDE_COL = ["#5aa9e6","#e0675a"];
+
+let ws=null, S=null, me=null, sel={verb:null,target:null}, sigMode=null;
+let hover=-1, geom=null, tick=null, endsAt=0, planLen=60;
+
+const $ = id => document.getElementById(id);
+const cv = $("map"), ctx = cv.getContext("2d");
+
+/* ------------------------------------------------------------- transport */
+function connect(){
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(proto + "://" + location.host + "/ws");
+  ws.onmessage = e => onMsg(JSON.parse(e.data));
+  ws.onclose = () => { $("err").textContent = "connection lost — reload"; };
+}
+const sendMsg = o => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
+
+function onMsg(m){
+  if (m.t === "error"){ $("err").textContent = m.why; return; }
+  if (m.t === "reject"){ flash(m.why); return; }
+  if (m.t === "joined"){ $("setup").style.display="none"; $("lobby").style.display="block"; return; }
+  if (m.t === "lobby"){ drawLobby(m); return; }
+  if (m.t === "state"){ S = m; onState(); }
+}
+
+function onState(){
+  me = S.seats.find(s => s.seat === S.you) || null;
+  $("codeChip").textContent = S.code;
+  $("rnd").textContent = S.round;
+  $("maxRnd").textContent = S.maxRounds;
+  $("phase").textContent = S.phase.toUpperCase();
+  endsAt = Date.now() + S.seconds*1000;
+  if (S.phase === "planning") planLen = Math.max(planLen, S.seconds || 1);
+  $("veil").classList.toggle("off", S.phase !== "lobby");
+  if (S.phase === "lobby") drawLobby(S);
+  if (S.committed){ sel.verb = null; sel.target = null; }
+  layout(); render(); sidebars(); verbBar(); clock();
+}
+
+function clock(){
+  if (tick) clearInterval(tick);
+  const paint = () => {
+    const left = Math.max(0, Math.round((endsAt - Date.now())/1000));
+    $("timer").textContent = S && S.phase === "lobby" ? "—" :
+      Math.floor(left/60) + ":" + String(left%60).padStart(2,"0");
+    $("timerFill").style.width =
+      (S && S.phase === "planning" ? Math.min(100, left/planLen*100) : 100) + "%";
+  };
+  paint(); tick = setInterval(paint, 250);
+}
+
+/* ------------------------------------------------------------- lobby */
+function drawLobby(m){
+  const g = $("seatGrid"); g.innerHTML = "";
+  [0,1].forEach(side => {
+    const col = document.createElement("div");
+    const h = document.createElement("div");
+    h.className = "colHead"; h.style.color = SIDE_COL[side];
+    h.textContent = (m.sides ? m.sides[side] : "SIDE " + side);
+    col.appendChild(h);
+    m.seats.filter(s => s.side === side).forEach(s => {
+      const b = document.createElement("button");
+      const mine = S && s.seat === S.you;
+      b.className = "seat" + (s.bot ? " free" : "") + (mine ? " mine" : "");
+      b.style.borderLeftColor = mine ? SIDE_COL[side] : "";
+      b.innerHTML = '<span class="mono" style="font-size:8.5px;letter-spacing:1px;color:'
+        + SIDE_COL[side] + '">' + s.kind + '</span>'
+        + '<span style="flex:1">' + (s.name || "open seat") + '</span>'
+        + (s.bot ? '<span class="chip" style="color:var(--dim2)">BOT</span>' : '');
+      b.onclick = () => sendMsg({t:"seat", seat:s.seat, name:$("nameIn").value});
+      col.appendChild(b);
+    });
+    g.appendChild(col);
+  });
+}
+
+/* ------------------------------------------------------------- geometry */
+function layout(){
+  if (!S) return;
+  const wrap = $("mapWrap");
+  const W = wrap.clientWidth - 16, H = wrap.clientHeight - 16;
+  const mw = S.map.w, mh = S.map.h;
+  // flat-top hexes: width 2r, height sqrt(3)r, columns 1.5r apart
+  const r = Math.min(W / (1.5*mw + 0.5), H / (Math.sqrt(3)*(mh + 0.5)));
+  const gw = 1.5*r*(mw-1) + 2*r, gh = Math.sqrt(3)*r*(mh + 0.5);
+  geom = {r, x0: (W-gw)/2 + r + 8, y0: (H-gh)/2 + Math.sqrt(3)*r/2 + 8};
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = W*dpr; cv.height = H*dpr;
+  cv.style.width = W+"px"; cv.style.height = H+"px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+const cen = rid => {
+  const c = rid % S.map.w, rw = Math.floor(rid / S.map.w), g = geom;
+  return [g.x0 + c*1.5*g.r, g.y0 + rw*Math.sqrt(3)*g.r + (c%2)*Math.sqrt(3)*g.r/2];
+};
+function hexPath(x,y,r){
+  ctx.beginPath();
+  for (let i=0;i<6;i++){
+    const a = Math.PI/3*i, px = x+r*Math.cos(a), py = y+r*Math.sin(a);
+    i ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+  }
+  ctx.closePath();
+}
+function pick(mx,my){
+  if (!S || !geom) return -1;
+  let best=-1, bd=1e9;
+  for (let i=0;i<S.map.terrain.length;i++){
+    const [x,y] = cen(i), d = (x-mx)**2 + (y-my)**2;
+    if (d < bd){ bd = d; best = i; }
+  }
+  return bd <= geom.r*geom.r ? best : -1;
+}
+
+/* ------------------------------------------------------------- rendering */
+function render(){
+  if (!S || !geom) return;
+  const r = geom.r;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const reg = {}; S.regions.forEach(x => reg[x.id] = x);
+  const vis = new Set(S.visible);
+
+  for (let i=0;i<S.map.terrain.length;i++){
+    const [x,y] = cen(i), t = S.map.terrain[i], R = reg[i] || {};
+    const [hx,hy] = [x,y];
+    hexPath(hx,hy,r-1);
+    ctx.fillStyle = TERRAIN_FILL[t] || "#19212c"; ctx.fill();
+    if (R.owner !== null && R.owner !== undefined){
+      ctx.fillStyle = (R.owner === 0 ? "rgba(90,169,230,.17)" : "rgba(224,103,90,.15)");
+      ctx.fill();
+    }
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = R.owner === 0 ? "rgba(90,169,230,.5)"
+      : R.owner === 1 ? "rgba(224,103,90,.46)" : "#2b3846";
+    ctx.stroke();
+    if (!vis.has(i)){ hexPath(hx,hy,r-1); ctx.fillStyle="rgba(11,16,22,.6)"; ctx.fill(); }
+
+    if (t === "MOUNTAIN"){ chevrons(hx,hy,r); }
+    if (t === "WATER" || t === "FORD"){ ripples(hx,hy,r, t==="FORD"); }
+    if (S.hubs.indexOf(i) >= 0) diamond(hx,hy,r*0.3,"#c9a227");
+    if (R.depot !== null && R.depot !== undefined) depot(hx,hy,r,SIDE_COL[R.depot]);
+    if (String(S.capitals[0]) === String(i) || String(S.capitals[1]) === String(i))
+      keep(hx,hy,r, String(S.capitals[0])===String(i) ? SIDE_COL[0] : SIDE_COL[1]);
+  }
+
+  // targeting affordance
+  if (sel.verb || sigMode){
+    const lit = legalTargets();
+    lit.forEach(i => { const [x,y]=cen(i); hexPath(x,y,r-2);
+      ctx.strokeStyle = sigMode ? "rgba(230,196,92,.6)" : "rgba(201,162,39,.55)";
+      ctx.lineWidth = 2; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]); });
+  }
+  if (hover >= 0){ const [x,y]=cen(hover); hexPath(x,y,r-2);
+    ctx.strokeStyle="#e6c45c"; ctx.lineWidth=2; ctx.stroke(); }
+  if (sel.target !== null && sel.target >= 0){
+    const [x,y]=cen(sel.target); hexPath(x,y,r-3);
+    ctx.fillStyle="rgba(230,196,92,.16)"; ctx.fill();
+    ctx.strokeStyle="#e6c45c"; ctx.lineWidth=2.4; ctx.stroke();
+    if (me){ const [ax,ay]=cen(me.region); arrow(ax,ay,x,y,"#e6c45c"); }
+  }
+
+  S.signals.forEach(g => signalMark(g));
+  S.brigades.forEach(b => counter(b));
+}
+
+function counter(b){
+  const [x,y] = cen(b.region), r = geom.r, col = SIDE_COL[b.side];
+  const w = Math.min(r*1.15, 54), h = w*0.54;
+  ctx.save();
+  ctx.font = "600 " + Math.round(r*0.19) + "px var(--mono),monospace";
+  ctx.textAlign = "center"; ctx.fillStyle = col;
+  ctx.fillText("X", x, y - h/2 - r*0.12);
+  ctx.beginPath(); ctx.rect(x-w/2, y-h/2, w, h);
+  ctx.fillStyle = "#0b1117"; ctx.fill();
+  ctx.lineWidth = me && b.id === me.brigade ? 3 : 2;
+  ctx.strokeStyle = b.supplied === false ? "#e8a13a" : col;
+  ctx.stroke();
+  branch(b.kind, x - w*0.18, y, w*0.2, col);
+  ctx.beginPath(); ctx.moveTo(x+w*0.14, y-h/2); ctx.lineTo(x+w*0.14, y+h/2);
+  ctx.strokeStyle = col; ctx.globalAlpha=.5; ctx.lineWidth=1; ctx.stroke();
+  ctx.globalAlpha=1;
+  ctx.fillStyle = col; ctx.font = "600 " + Math.round(h*0.52) + "px var(--mono),monospace";
+  ctx.fillText(String(b.strength), x + w*0.31, y + h*0.19);
+  if (b.reserve){ ctx.fillStyle="#e6c45c"; ctx.font = Math.round(r*0.17)+"px var(--mono),monospace";
+    ctx.fillText("RESERVE", x, y + h/2 + r*0.27); }
+  ctx.restore();
+}
+function branch(kind,x,y,s,col){
+  ctx.save(); ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=Math.max(1.3,s*0.16);
+  ctx.beginPath();
+  if (kind==="LINE"||kind==="LIGHT"){
+    ctx.moveTo(x-s,y-s*0.7); ctx.lineTo(x+s,y+s*0.7);
+    ctx.moveTo(x+s,y-s*0.7); ctx.lineTo(x-s,y+s*0.7); ctx.stroke();
+    if (kind==="LIGHT"){ ctx.beginPath(); ctx.arc(x,y,s*0.26,0,7); ctx.fill(); }
+  } else if (kind==="HORSE"){
+    ctx.moveTo(x-s,y+s*0.7); ctx.lineTo(x+s,y-s*0.7); ctx.stroke();
+  } else if (kind==="GUNS"){
+    ctx.arc(x,y,s*0.45,0,7); ctx.fill();
+  } else {
+    ctx.moveTo(x-s,y+s*0.7); ctx.lineTo(x-s,y-s*0.7); ctx.lineTo(x+s,y-s*0.7);
+    ctx.lineTo(x+s,y+s*0.7); ctx.stroke();
+  }
+  ctx.restore();
+}
+function diamond(x,y,s,col){ ctx.save(); ctx.beginPath();
+  ctx.moveTo(x,y-s); ctx.lineTo(x+s,y); ctx.lineTo(x,y+s); ctx.lineTo(x-s,y);
+  ctx.closePath(); ctx.strokeStyle=col; ctx.lineWidth=1.6; ctx.globalAlpha=.8;
+  ctx.stroke(); ctx.restore(); }
+function depot(x,y,r,col){ const s=r*0.17; ctx.save();
+  ctx.strokeStyle=col; ctx.lineWidth=1.6; ctx.strokeRect(x-r*0.55-s,y-r*0.55-s,s*2,s*2);
+  ctx.restore(); }
+function keep(x,y,r,col){ ctx.save(); hexPath(x,y,r*0.78);
+  ctx.strokeStyle=col; ctx.lineWidth=2.2; ctx.globalAlpha=.75; ctx.stroke(); ctx.restore(); }
+function chevrons(x,y,r){ ctx.save(); ctx.strokeStyle="#4d5c6c"; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(x-r*.3,y+r*.18); ctx.lineTo(x,y-r*.22); ctx.lineTo(x+r*.3,y+r*.18);
+  ctx.stroke(); ctx.restore(); }
+function ripples(x,y,r,ford){ ctx.save(); ctx.strokeStyle=ford?"#3b5f7d":"#28415a";
+  ctx.lineWidth=1.4;
+  for (let k=-1;k<=1;k++){ ctx.beginPath();
+    ctx.moveTo(x-r*.42, y+k*r*.22); ctx.quadraticCurveTo(x, y+k*r*.22-r*.12, x+r*.42, y+k*r*.22);
+    ctx.stroke(); }
+  ctx.restore(); }
+function arrow(ax,ay,bx,by,col){
+  const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L, r=geom.r;
+  const sx=ax+ux*r*0.5, sy=ay+uy*r*0.5, ex=bx-ux*r*0.55, ey=by-uy*r*0.55;
+  ctx.save(); ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=3.2; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ex+ux*r*.24, ey+uy*r*.24);
+  ctx.lineTo(ex-uy*r*.15, ey+ux*r*.15); ctx.lineTo(ex+uy*r*.15, ey-ux*r*.15);
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function signalMark(g){
+  const [x,y]=cen(g.region), r=geom.r;
+  const col = {ATTACK:"#e0675a",DEFEND:"#5aa9e6",DANGER:"#e8a13a",NEED:"#e6c45c"}[g.kind];
+  ctx.save(); ctx.translate(x, y - r*0.62);
+  ctx.beginPath(); ctx.arc(0,0,r*0.2,0,7);
+  ctx.fillStyle="#0d141b"; ctx.fill(); ctx.strokeStyle=col; ctx.lineWidth=1.6; ctx.stroke();
+  ctx.fillStyle=col; ctx.font="600 "+Math.round(r*0.2)+"px var(--mono),monospace";
+  ctx.textAlign="center"; ctx.fillText(g.kind[0], 0, r*0.07);
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------- sidebars */
+function sidebars(){
+  if (!S) return;
+  const trk = $("tracks"); trk.innerHTML = "";
+  [0,1].forEach(side => {
+    const d = document.createElement("div");
+    d.className = "track"; d.style.color = SIDE_COL[side];
+    d.innerHTML = '<span>HUBS</span><div class="trackBar"><div style="width:'
+      + (S.hubsHeld[side]/S.hubs.length*100) + '%;height:100%;background:'+SIDE_COL[side]+'"></div></div>'
+      + '<span>' + S.hubsHeld[side] + '/' + S.hubs.length + '</span>'
+      + '<span style="color:var(--dim2)">' + S.regionsHeld[side] + ' REG</span>';
+    trk.appendChild(d);
+  });
+
+  const mine = me ? S.brigades.find(b => b.id === me.brigade) : null;
+  if (mine){
+    $("brigName").textContent = mine.kind + " BRIGADE";
+    $("brigSub").textContent = (mine.commander || "") + " · YOU";
+    $("brigStr").textContent = mine.strength;
+    $("brigMax").textContent = "/ " + (mine.max || mine.strength);
+    $("brigBar").style.width = (mine.strength/(mine.max||mine.strength)*100) + "%";
+    const st = S.stats ? S.stats[mine.kind] : null;
+    $("brigStats").innerHTML =
+      row("SUPPLY", mine.supplied ? "In the chain" : "CUT OFF · −2/round",
+          mine.supplied ? "var(--green)" : "var(--warn)")
+      + row("ENTRENCHED", mine.entrenched ? ("level " + mine.entrenched) : "no")
+      + (st ? row("PACE", st.pace + " region" + (st.pace>1?"s":""))
+            + row("APPETITE", st.appetite + " supply / round") : "");
+  }
+
+  const army = $("army"); army.innerHTML = "";
+  let ready = 0, total = 0;
+  S.seats.filter(s => me ? s.side === me.side : s.side === 0).forEach(s => {
+    if (s.alive) total++;
+    if (s.committed) ready++;
+    const d = document.createElement("div");
+    d.className = "arow" + (me && s.seat === me.seat ? " me" : "");
+    const stance = !s.alive ? "BROKEN" : s.committed ? "SEALED"
+      : s.bot ? "BOT" : "PLANNING…";
+    const scol = !s.alive ? "var(--cr)" : s.committed ? "var(--green)" : "var(--warn)";
+    d.innerHTML = '<div class="dot" style="background:'
+      + (s.supplied === false ? "var(--warn)" : "var(--green)") + '"></div>'
+      + '<div style="flex:1;min-width:0"><div class="nm">' + (s.name || s.commander)
+      + ' <span class="mono" style="font-size:8.5px;color:var(--dim2)">' + s.kind + '</span></div>'
+      + '<div class="st" style="color:' + scol + '">' + stance + '</div></div>'
+      + '<span class="str">' + s.strength + '</span>';
+    army.appendChild(d);
+  });
+  $("readyChip").textContent = ready + " / " + total + " SEALED";
+  $("sigLeft").textContent = S.signalsLeft + " LEFT";
+
+  const sl = $("sigLog"); sl.innerHTML = "";
+  S.signals.slice(-4).forEach(g => {
+    const d = document.createElement("div");
+    d.style.cssText = "display:flex;gap:7px;align-items:center;font-size:11px";
+    const col = {ATTACK:"var(--cr)",DEFEND:"var(--az)",DANGER:"var(--warn)",NEED:"var(--brass2)"}[g.kind];
+    d.innerHTML = '<span class="mono" style="font-size:9px;color:var(--dim2);width:46px">'
+      + g.from + '</span><span class="mono" style="font-size:9px;color:' + col + '">'
+      + g.kind + '</span><span style="color:var(--dim)">region ' + g.region + '</span>';
+    sl.appendChild(d);
+  });
+
+  $("log").innerHTML = "";
+  (S.events || []).slice(0,7).forEach(e => {
+    const txt = describe(e); if (!txt) return;
+    const d = document.createElement("div"); d.className = "ev"; d.innerHTML = txt;
+    $("log").appendChild(d);
+  });
+  ground();
+}
+const row = (k,v,col) => '<div class="kv"><span>'+k+'</span><span style="color:'
+  + (col||"var(--text)") + '">' + v + '</span></div>';
+
+function describe(e){
+  switch(e.t){
+    case "battle": return "<b>Battle</b> at region " + e.region + " — "
+      + (e.power[0]||0).toFixed(1) + " v " + (e.power[1]||0).toFixed(1)
+      + (e.concentration ? ' <span style="color:var(--brass2)">+'+e.concentration+' concentration</span>' : "");
+    case "standoff": return "<b>Stand-off</b> at region " + e.region + " — neither side took it";
+    case "capture": return "<b>Region " + e.region + "</b> taken";
+    case "depot": return "<b>Depot</b> built at region " + e.region;
+    case "starve": return '<b style="color:var(--warn)">Starving</b> at region '
+      + e.region + " — −" + e.lost;
+    case "broken": return '<b style="color:var(--cr)">Brigade broken</b> at region ' + e.region;
+    case "parley_contested": return "<b>Both armies</b> courted region " + e.region + " — it stays neutral";
+    case "victory": return '<b style="color:var(--brass2)">' + (e.why||"over") + "</b>";
+    default: return null;
+  }
+}
+function ground(){
+  const rid = sel.target !== null && sel.target >= 0 ? sel.target : hover;
+  const box = $("ground");
+  if (!S || rid < 0){ box.innerHTML = '<div style="font-size:11px;color:var(--dim2)">Hover the map.</div>';
+    $("groundChip").textContent = "NONE"; return; }
+  const R = S.regions.find(x => x.id === rid) || {};
+  $("groundChip").textContent = "REGION " + rid;
+  box.innerHTML = row("TERRAIN", S.map.terrain[rid])
+    + row("HELD BY", R.owner === null || R.owner === undefined ? "nobody"
+        : (R.owner === 0 ? "Azure" : "Crimson"),
+        R.owner === null || R.owner === undefined ? "var(--dim)" : SIDE_COL[R.owner])
+    + row("HUB", S.hubs.indexOf(rid) >= 0 ? "yes — a supply hub" : "no",
+        S.hubs.indexOf(rid) >= 0 ? "var(--brass2)" : "var(--dim)")
+    + row("IN SIGHT", R.lit ? "yes" : "no — remembered", R.lit ? "var(--green)" : "var(--warn)");
+}
+
+/* ------------------------------------------------------------- orders */
+function verbBar(){
+  const bar = $("verbs");
+  if (bar.childElementCount !== ORDER_DEFS.length){
+    bar.innerHTML = "";
+    ORDER_DEFS.forEach(([name,cost]) => {
+      const b = document.createElement("button");
+      b.className = "verb"; b.dataset.verb = name;
+      b.innerHTML = '<span class="vn">'+name+'</span><span class="vc">'+cost+' SUPPLY</span>';
+      b.onclick = () => chooseVerb(name);
+      bar.appendChild(b);
+    });
+  }
+  const locked = !S || S.phase !== "planning" || !me || S.committed;
+  [...bar.children].forEach(b => {
+    b.classList.toggle("on", b.dataset.verb === sel.verb);
+    b.classList.toggle("off", locked);
+    b.disabled = locked;
+  });
+  $("commit").disabled = locked;
+  $("commit").textContent = S && S.committed ? "SEALED" : "COMMIT";
+  const def = ORDER_DEFS.find(d => d[0] === sel.verb);
+  $("orderVerb").textContent = sel.verb || "NO ORDER";
+  $("orderText").innerHTML = !me ? "Take a seat to give orders."
+    : S.committed ? "Sealed. Waiting for the rest of the army."
+    : !def ? "Pick an order, then click the ground you mean."
+    : def[2] && sel.target === null ? "<b>" + def[3] + "</b> Now click a region."
+    : def[3] + (sel.target !== null ? " <b>Region " + sel.target + ".</b>" : "");
+  document.querySelectorAll(".sig").forEach(b =>
+    b.classList.toggle("on", b.dataset.sig === sigMode));
+}
+
+function chooseVerb(name){
+  sigMode = null;
+  sel.verb = name; sel.target = null;
+  const def = ORDER_DEFS.find(d => d[0] === name);
+  if (!def[2]) submit();
+  verbBar(); render();
+}
+function legalTargets(){
+  if (!S || !me) return [];
+  const mine = S.brigades.find(b => b.id === me.brigade);
+  if (!mine) return [];
+  if (sigMode) return S.map.terrain.map((_,i)=>i);
+  const def = ORDER_DEFS.find(d => d[0] === sel.verb);
+  if (!def || !def[2]) return [];
+  const out = [];
+  for (let i=0;i<S.map.terrain.length;i++){
+    if (i === mine.region) continue;
+    if (["MOUNTAIN","WATER"].indexOf(S.map.terrain[i]) >= 0) continue;
+    if (hexDist(mine.region, i) <= 3) out.push(i);
+  }
+  return out;
+}
+function hexDist(a,b){
+  const W = S.map.w;
+  const toCube = i => { const c = i % W, r = Math.floor(i / W);
+    const x = c, z = r - (c - (c & 1))/2; return [x, -x-z, z]; };
+  const A = toCube(a), B = toCube(b);
+  return Math.max(Math.abs(A[0]-B[0]), Math.abs(A[1]-B[1]), Math.abs(A[2]-B[2]));
+}
+function submit(){
+  if (!sel.verb) return;
+  sendMsg({t:"order", verb:sel.verb, target:sel.target});
+}
+function flash(msg){
+  const h = $("hint"); h.textContent = msg; h.classList.add("on");
+  clearTimeout(flash.t); flash.t = setTimeout(() => h.classList.remove("on"), 2200);
+}
+
+/* ------------------------------------------------------------- input */
+cv.addEventListener("mousemove", e => {
+  const b = cv.getBoundingClientRect();
+  const h = pick(e.clientX-b.left, e.clientY-b.top);
+  if (h !== hover){ hover = h; render(); ground(); }
+});
+cv.addEventListener("mouseleave", () => { hover = -1; render(); });
+cv.addEventListener("click", e => {
+  const b = cv.getBoundingClientRect();
+  const rid = pick(e.clientX-b.left, e.clientY-b.top);
+  if (rid < 0) return;
+  if (sigMode){ sendMsg({t:"signal", kind:sigMode, region:rid}); sigMode=null; verbBar(); render(); return; }
+  if (!sel.verb){ flash("pick an order first"); return; }
+  const def = ORDER_DEFS.find(d => d[0] === sel.verb);
+  if (!def[2]){ flash(sel.verb + " needs no target"); return; }
+  sel.target = rid; submit(); verbBar(); render(); ground();
+});
+document.querySelectorAll(".sig").forEach(b => b.onclick = () => {
+  if (!S || S.phase !== "planning") return;
+  if (S.signalsLeft <= 0){ flash("no signals left this round"); return; }
+  sigMode = sigMode === b.dataset.sig ? null : b.dataset.sig;
+  sel.verb = null; verbBar(); render();
+});
+$("commit").onclick = () => sendMsg({t:"commit"});
+$("hostBtn").onclick = () => sendMsg({t:"host", name:$("nameIn").value});
+$("joinBtn").onclick = () => sendMsg({t:"join", code:$("codeIn").value, name:$("nameIn").value});
+$("startBtn").onclick = () => sendMsg({t:"start"});
+$("codeIn").addEventListener("keydown", e => { if (e.key === "Enter") $("joinBtn").click(); });
+window.addEventListener("resize", () => { layout(); render(); });
+window.addEventListener("keydown", e => {
+  if (!S || S.phase !== "planning" || !me) return;
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= 9) chooseVerb(ORDER_DEFS[n-1][0]);
+  if (e.key === "Enter") sendMsg({t:"commit"});
+  if (e.key === "Escape"){ sel.verb=null; sel.target=null; sigMode=null; verbBar(); render(); }
+});
+
+connect();
+</script>
+</body>
+</html>
