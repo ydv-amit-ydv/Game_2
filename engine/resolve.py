@@ -18,7 +18,7 @@ from .constants import (ADVANCE, ASSAULT, HOLD, SCREEN, SUPPLY, FORAGE, RECON,
                         ENTRENCH_PER_HOLD, ENTRENCH_MAX, ENTRENCH_GUARD,
                         WORKS_GUARD, WORKS_MAX, TERRAIN_GUARD,
                         WINNER_LOSS_BASE, LOSER_LOSS_BASE, LOSER_LOSS_SLOPE,
-                        LOSER_LOSS_MAX, BROKEN_AT, STANDOFF_LOSS,
+                        LOSER_LOSS_MAX, BROKEN_AT, STANDOFF_LOSS, BALK_ROUNDS,
                         SUPPLY_RANGE, STARVE_LOSS, REFIT_GAIN,
                         MAX_ROUNDS, HUB_HOLD_TO_WIN, AZURE, CRIMSON)
 from .orders import sanitise
@@ -85,6 +85,10 @@ def resolve(state, orders):
     # -- 1. standing orders that change nothing but the brigade itself ----
     for b in s.living():
         b.in_reserve = False
+        if b.balk_for > 0:              # the memory of a repulse fades
+            b.balk_for -= 1
+            if b.balk_for == 0:
+                b.balk_at = None
     for o in orders:
         b = s.brigade(o.brigade)
         if o.verb == RESERVE:
@@ -133,6 +137,14 @@ def resolve(state, orders):
             continue
         claims = suitors[rid]
         if len(claims) > 1:
+            # Both armies sent envoys, so the region keeps its independence.
+            # Each brigade remembers being rebuffed, or it will spend the
+            # rest of the campaign knocking on the same door -- it cannot
+            # see the rival envoy, only the closed door.
+            for bids in claims.values():
+                for bid in bids:
+                    s.brigade(bid).balk_at = rid
+                    s.brigade(bid).balk_for = BALK_ROUNDS
             ev.append({"t": "parley_contested", "region": rid,
                        "sides": sorted(claims)})
             continue
@@ -268,7 +280,12 @@ def resolve(state, orders):
             for bid in d["movers"] + d["holders"] + d["reserves"]:
                 b = s.brigade(bid)
                 hit = int(round(b.strength * frac))
-                if frac > 0 and hit == 0 and b.strength > 0:
+                # A real engagement always costs somebody something, so a
+                # battle never rounds down to nothing. A stand-off is not an
+                # engagement -- rounding it up to 1 put a floor under the
+                # cost of contact and ground small brigades away anyway.
+                if (frac > 0 and hit == 0 and b.strength > 0
+                        and not v.get("standoff")):
                     hit = 1
                 b.strength = max(0, b.strength - hit)
                 if hit:
@@ -293,6 +310,8 @@ def resolve(state, orders):
         if not b.alive or b.strength < BROKEN_AT:
             continue
         if b.side in bounce.get(dest, ()):
+            b.balk_at = dest
+            b.balk_for = BALK_ROUNDS
             ev.append({"t": "repulsed", "brigade": bid, "region": dest,
                        "back": b.region})
             continue                            # bounced back to where it set off

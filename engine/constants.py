@@ -93,7 +93,16 @@ LOSER_LOSS_MAX = 0.85
 # held leave it contested and empty. Awarding a dead heat to anyone means
 # awarding it by side number, and the centre hub sits on the map's axis of
 # symmetry, so that one arbitrary rule decided whole campaigns.
-STANDOFF_LOSS = 0.18
+# Kept deliberately cheap. A stand-off changes nothing on the map, so
+# billing both sides heavily for it turns a locked position into a mutual
+# suicide pact: neither army can take the ground, and both bleed out
+# probing it. Contact should cost something, not everything.
+STANDOFF_LOSS = 0.05
+
+# How long a brigade remembers being thrown off a piece of ground. It will
+# not walk back into it unaided within this many rounds -- it needs another
+# brigade alongside, which is what concentration is for.
+BALK_ROUNDS = 4
 
 # a brigade below this is broken and leaves the field for good
 BROKEN_AT = 1

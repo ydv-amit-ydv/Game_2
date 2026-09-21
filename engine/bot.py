@@ -152,10 +152,18 @@ def _one(state, b, vis, reach, seen_enemies, targets, claimed, face):
             return Order(b.id, SCREEN, goal)
 
     # --- free ground is worth taking without a fight ---------------------
+    # ...but only where nobody can turn up to contest it. Two armies courting
+    # the same neutral hub cancel each other out, and a commander who cannot
+    # see that will spend the entire campaign doing it.
     for rid in adj:
         rr = state.region(rid)
-        if rr.owner is None and rid in vis and not state.at(rid) \
-                and rid in state.map.hubs:
+        if rr.owner is not None or rid not in vis or state.at(rid):
+            continue
+        if rid not in state.map.hubs or rid == b.balk_at:
+            continue
+        rivals = [e for e in seen_enemies
+                  if rid in state.map.within(e.region, e.stats["pace"])]
+        if not rivals:
             return Order(b.id, PARLEY, rid)
 
     # --- an objective within reach ---------------------------------------
@@ -167,6 +175,9 @@ def _one(state, b, vis, reach, seen_enemies, targets, claimed, face):
         holders = [e for e in state.living() if e.region == t
                    and e.side != b.side]
         friends_coming = claimed.get(t, 0)
+        # bounced off this ground recently? Only go back with company.
+        if t == b.balk_at and not friends_coming:
+            continue
         if not holders:
             return Order(b.id, ADVANCE, t)
         # worth assaulting if we already outweigh them, or someone else is
@@ -193,6 +204,13 @@ def _one(state, b, vis, reach, seen_enemies, targets, claimed, face):
     # --- otherwise, march ------------------------------------------------
     goal, _ = _nearest(state, here, targets, face)
     step = _step_toward(state, b, goal, face)
+    if step == b.balk_at:
+        # the direct road is the one we were thrown off. Try the next
+        # objective instead, and if there is nothing else, dig in rather
+        # than bleed against the same ground every round.
+        rest = [t for t in targets if t != goal]
+        alt = _step_toward(state, b, _nearest(state, here, rest, face)[0], face)
+        step = alt if alt not in (None, here, b.balk_at) else None
     if step is not None and step != here:
         return Order(b.id, ADVANCE, step)
     return Order(b.id, HOLD)

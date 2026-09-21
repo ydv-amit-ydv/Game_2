@@ -18,7 +18,7 @@ from .hexmap import HexMap, generate
 class Brigade:
     __slots__ = ("id", "side", "kind", "commander", "strength", "max_strength",
                  "region", "entrenched", "in_reserve", "supplied",
-                 "forage_used", "alive")
+                 "forage_used", "alive", "balk_at", "balk_for")
 
     def __init__(self, bid, side, kind, commander, region):
         st = BRIGADE_STATS[kind]
@@ -34,6 +34,11 @@ class Brigade:
         self.supplied = True
         self.forage_used = 0
         self.alive = True
+        # ground that threw this brigade back, and how long it remembers.
+        # Without this a commander marches into the same wall every round
+        # until the brigade is gone.
+        self.balk_at = None
+        self.balk_for = 0
 
     @property
     def stats(self):
