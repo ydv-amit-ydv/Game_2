@@ -22,6 +22,7 @@ from .fog import visible, view, Intel, enemy_of
 from . import bot
 from . import corps
 from . import coach
+from . import skirmish
 
 __all__ = [
     "KINDS", "ORDERS", "LINE", "LIGHT", "HORSE", "GUNS", "PIONEERS",
@@ -30,5 +31,5 @@ __all__ = [
     "HexMap", "generate", "GameState", "Brigade", "Region", "new_game",
     "match_summary", "validate_order_of_battle", "DEFAULT_ORDER_OF_BATTLE",
     "Order", "sanitise", "validate", "resolve", "supply_map",
-    "visible", "view", "Intel", "enemy_of", "bot", "corps", "coach",
+    "visible", "view", "Intel", "enemy_of", "bot", "corps", "coach", "skirmish",
 ]

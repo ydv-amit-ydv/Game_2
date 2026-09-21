@@ -97,6 +97,7 @@ class GameState:
         self.winner = None
         self.verdict = ""
         self.hub_streak = {AZURE: 0, CRIMSON: 0}
+        self.max_rounds = MAX_ROUNDS
 
     # ------------------------------------------------------------ lookups
     def brigade(self, bid):
@@ -161,6 +162,7 @@ class GameState:
         s.winner = self.winner
         s.verdict = self.verdict
         s.hub_streak = dict(self.hub_streak)
+        s.max_rounds = self.max_rounds
         return s
 
     def to_dict(self):
@@ -171,6 +173,7 @@ class GameState:
             "seed": self.seed, "round": self.round, "over": self.over,
             "winner": self.winner, "verdict": self.verdict,
             "hub_streak": {str(k): v for k, v in self.hub_streak.items()},
+            "max_rounds": self.max_rounds,
         }
 
     @staticmethod
@@ -185,6 +188,7 @@ class GameState:
         s.winner = d["winner"]
         s.verdict = d["verdict"]
         s.hub_streak = {int(k): v for k, v in d["hub_streak"].items()}
+        s.max_rounds = d.get("max_rounds", MAX_ROUNDS)
         return s
 
     def digest(self):

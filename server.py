@@ -29,8 +29,9 @@ import struct
 import sys
 import time
 
-from engine import (new_game, resolve, bot, corps, coach, Order, AZURE,
-                    CRIMSON, MAX_ROUNDS, Intel, view, validate)
+from engine import (new_game, resolve, bot, corps, coach, skirmish, Order,
+                    AZURE, CRIMSON, MAX_ROUNDS, Intel, view, validate)
+from engine.resolve import supply_map
 from engine.constants import (ORDERS, TARGETED, SIGNAL_KINDS,
                               SIGNALS_PER_ROUND, SIDE_NAMES, BRIGADE_STATS,
                               MEMORY_ROUNDS)
@@ -46,6 +47,8 @@ WEB = os.path.join(HERE, "web")
 # so you play six of them and actually improve.
 PLAN_SECONDS = int(os.environ.get("COMPACT_PLAN", 25))
 RESOLVE_SECONDS = int(os.environ.get("COMPACT_RESOLVE", 6))
+# the small game is one person against the machine, so it can be quicker
+SKIRMISH_PLAN = int(os.environ.get("COMPACT_SKIRMISH_PLAN", 20))
 LOBBY_IDLE_TTL = 900
 CODE_CHARS = "".join(c for c in string.ascii_uppercase + string.digits
                      if c not in "0O1IL")
@@ -124,10 +127,20 @@ class Seat:
 
 
 class Room:
-    def __init__(self, code, seed=None):
+    def __init__(self, code, seed=None, mode="campaign", lesson=None):
         self.code = code
         self.seed = seed if seed is not None else random.randrange(1 << 30)
-        self.state = new_game(seed=self.seed)
+        self.mode = mode                      # "campaign" | "skirmish"
+        self.lesson = lesson                  # index into skirmish.LESSONS
+        if mode == "skirmish":
+            if lesson is None:
+                self.state = skirmish.new_skirmish(self.seed)
+                self.spec = None
+            else:
+                self.state, self.spec = skirmish.lesson(lesson, self.seed)
+        else:
+            self.spec = None
+            self.state = new_game(seed=self.seed)
         self.phase = "lobby"          # lobby | planning | resolving | over
         self.ends_at = 0.0
         # Only the commanded brigades get seats. The Reserve Corps has no
@@ -155,6 +168,14 @@ class Room:
                 return s
         return None
 
+    def seats_of(self, client):
+        """In the small game one person commands the whole side, so a client
+        can hold several seats at once."""
+        return [s for s in self.seats if s.client is client]
+
+    def solo(self):
+        return self.mode == "skirmish"
+
     def humans(self):
         return [s for s in self.seats if s.client is not None]
 
@@ -168,16 +189,27 @@ class Room:
         seat = self.seats[index]
         if seat.client is not None and seat.client is not client:
             return None, "somebody is already in that seat"
-        old = self.seat_of(client)
-        if old and old is not seat:
-            old.client, old.name, old.order, old.committed = None, None, None, False
+        if not self.solo():
+            old = self.seat_of(client)
+            if old and old is not seat:
+                old.client = old.name = old.order = None
+                old.committed = False
         seat.client = client
         seat.name = (name or "COMMANDER")[:16]
         return seat, ""
 
+    def take_side(self, client, side, name):
+        """The small game hands one person every brigade on their side."""
+        taken = []
+        for s in self.seats:
+            if s.side == side and s.client in (None, client):
+                s.client = client
+                s.name = (name or "YOU")[:16]
+                taken.append(s)
+        return taken
+
     def release(self, client):
-        seat = self.seat_of(client)
-        if seat:
+        for seat in self.seats_of(client):
             seat.client = None
             seat.name = None
             seat.order = None
@@ -214,9 +246,11 @@ def lobby_payload(room):
             "sides": {str(k): v for k, v in SIDE_NAMES.items()}}
 
 
-def state_payload(room, seat):
+def state_payload(room, seat, client=None):
     """What one seat is entitled to see. The fog is applied right here."""
     side = seat.side if seat else AZURE
+    mine = ([s.brigade for s in room.seats_of(client)] if client
+            else ([seat.brigade] if seat else []))
     v = view(room.state, side, room.intel[side])
     v.update({
         "t": "state",
@@ -229,19 +263,30 @@ def state_payload(room, seat):
         "seats": [s.public(room.state) for s in room.seats],
         "hubs": room.state.map.hubs,
         "capitals": {str(k): v2 for k, v2 in room.state.map.capitals.items()},
+        "mode": room.mode,
+        "yourBrigades": mine,
+        "orders": {str(s.brigade): (s.order.to_dict() if s.order else None)
+                   for s in (room.seats_of(client) if client else [])},
+        "objective": (skirmish.objective(room.state, side)
+                      if room.solo() else None),
+        # Which regions your army can actually be fed in. Invisible supply
+        # is what made this game opaque, so it is drawn on the board.
+        "supply": sorted(supply_map(room.state, side)),
+        "orderMenu": skirmish.ORDERS if room.solo() else None,
+        "lesson": room.spec,
         "order": (seat.order.to_dict() if seat and seat.order else None),
-        "committed": seat.committed if seat else False,
+        "committed": (all(s.committed for s in room.seats_of(client))
+                      if client and room.seats_of(client)
+                      else (seat.committed if seat else False)),
         "signals": [g for g in room.signals if g["side"] == side][-12:],
         "signalsLeft": (SIGNALS_PER_ROUND
                         - room.signal_budget.get(seat.index, 0)) if seat else 0,
         "events": room.last_events,
         "coach": room.coach_notes.get(side, []),
-        "warnings": (coach.warn(room.state, room.state.brigade(seat.brigade),
-                                seat.order)
-                     if seat and seat.order
-                     and room.state.brigade(seat.brigade).alive else []),
+        "warnings": _warnings(room, client, seat),
         "corpsNotes": [n for n in room.corps_notes if n["side"] == side],
-        "corpsPosture": corps.posture(room.state, side),
+        "corpsPosture": (corps.posture(room.state, side)
+                         if room.state.corps_of(side) else "NONE"),
         "tilt": round(room.state.tilt(), 3),
         "forgetAfter": MEMORY_ROUNDS,
         "brief": coach.opening_brief(room.state, side),
@@ -255,15 +300,29 @@ def state_payload(room, seat):
     return v
 
 
+def _warnings(room, client, seat):
+    """What the coach has to say about the orders standing right now."""
+    out = []
+    for s in (room.seats_of(client) if client else ([seat] if seat else [])):
+        b = room.state.brigade(s.brigade)
+        if not (s.order and b.alive):
+            continue
+        for w in coach.warn(room.state, b, s.order):
+            out.append(dict(w, brigade=b.id, commander=b.commander))
+    rank = {"risk": 0, "care": 1, "note": 2}
+    out.sort(key=lambda w: rank.get(w["level"], 3))
+    return out[:3]
+
+
 def push_state(room):
     for c in list(room.clients):
-        send(c, state_payload(room, room.seat_of(c)))
+        send(c, state_payload(room, room.seat_of(c), c))
 
 
 # ------------------------------------------------------------------ the clock
 def begin_planning(room):
     room.phase = "planning"
-    room.ends_at = time.time() + PLAN_SECONDS
+    room.ends_at = time.time() + (SKIRMISH_PLAN if room.solo() else PLAN_SECONDS)
     room.signal_budget = {}
     room.corps_notes = room.corps_notes
     for s in room.seats:
@@ -292,9 +351,11 @@ def run_round(room):
         if bot_seats[side]:
             orders += bot.plan(room.state, side, seats=bot_seats[side])
 
-    # the Reserve Corps, which nobody sits in
+    # the Reserve Corps, which nobody sits in. The small game has none.
     notes = []
     for side in (AZURE, CRIMSON):
+        if not room.state.corps_of(side):
+            continue
         c_orders, c_notes = corps.plan(room.state, side)
         orders += c_orders
         for n in c_notes:
@@ -356,10 +417,16 @@ def handle(client, msg):
     if t == "host":
         code = gen_code()
         seed = msg.get("seed")
-        room = Room(code, seed=int(seed) if seed is not None else None)
+        room = Room(code, seed=int(seed) if seed is not None else None,
+                    mode=("skirmish" if msg.get("mode") == "skirmish"
+                          else "campaign"),
+                    lesson=(int(msg["lesson"]) if msg.get("lesson") is not None
+                            else None))
         ROOMS[code] = room
         asyncio.ensure_future(clock(room))
         join(client, room, msg.get("name"))
+        if room.solo():
+            begin_planning(room)          # nothing to wait for, so start
         return
 
     if t == "join":
@@ -393,8 +460,16 @@ def handle(client, msg):
             begin_planning(room)
 
     elif t == "order":
-        seat = room.seat_of(client)
-        if not seat or room.phase != "planning" or seat.committed:
+        held = room.seats_of(client)
+        if not held or room.phase != "planning":
+            return
+        want = msg.get("brigade")
+        seat = (next((s for s in held if s.brigade == want), None)
+                if want is not None else held[0])
+        if seat is None:
+            send(client, {"t": "error", "why": "that is not your brigade"})
+            return
+        if seat.committed:
             return
         verb = msg.get("verb")
         if verb not in ORDERS:
@@ -405,18 +480,20 @@ def handle(client, msg):
                       int(target) if target is not None else None)
         ok, why = validate(room.state, order)
         if not ok:
-            send(client, {"t": "reject", "verb": verb, "why": why})
+            send(client, {"t": "reject", "verb": verb, "why": why,
+                          "brigade": seat.brigade})
             return
         seat.order = order
-        send(client, state_payload(room, seat))
+        send(client, state_payload(room, seat, client))
 
     elif t == "commit":
-        seat = room.seat_of(client)
-        if not seat or room.phase != "planning":
+        held = room.seats_of(client)
+        if not held or room.phase != "planning":
             return
-        if seat.order is None:
-            seat.order = Order(seat.brigade, "HOLD")
-        seat.committed = True
+        for seat in held:               # commits every brigade you command
+            if seat.order is None:
+                seat.order = Order(seat.brigade, "HOLD")
+            seat.committed = True
         push_state(room)
 
     elif t == "signal":
@@ -447,11 +524,13 @@ def join(client, room, name):
     client.room = room
     room.clients.add(client)
     room.touched = time.time()
-    # drop into the first free seat so a solo player is playing immediately
-    free = [s for s in room.seats if s.client is None and s.side == AZURE]
-    if free:
-        room.take_seat(client, free[0].index, name)
-    send(client, {"t": "joined", "code": room.code})
+    if room.solo():
+        room.take_side(client, AZURE, name)     # you command the whole side
+    else:
+        free = [s for s in room.seats if s.client is None and s.side == AZURE]
+        if free:
+            room.take_seat(client, free[0].index, name)
+    send(client, {"t": "joined", "code": room.code, "mode": room.mode})
     broadcast(room, lobby_payload(room))
     push_state(room)
 

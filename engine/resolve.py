@@ -417,8 +417,11 @@ def _judge(state, ev):
             _finish(state, ev, side, "took the enemy capital")
             return
 
+    # A board with no hubs on it (the small game) has no hub victory. Without
+    # this guard "held every hub" is trivially true of nobody holding none.
     for side in state.sides():
-        if len(state.hubs_held(side)) == len(state.map.hubs):
+        if state.map.hubs and \
+                len(state.hubs_held(side)) == len(state.map.hubs):
             state.hub_streak[side] += 1
         else:
             state.hub_streak[side] = 0
@@ -436,7 +439,7 @@ def _judge(state, ev):
         _finish(state, ev, None, "both armies destroyed each other")
         return
 
-    if state.round >= MAX_ROUNDS:
+    if state.round >= state.max_rounds:
         score = {}
         for side in state.sides():
             score[side] = (len(state.hubs_held(side)),

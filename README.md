@@ -1,34 +1,48 @@
 # THE IRON COMPACT
 
-A fast simultaneous-turn wargame for 2–10 players, built to train rather
-than drain. A campaign runs about seven minutes on a 25-second round clock —
-short enough that you play six of them and actually get better.
+**You command three brigades. Take the enemy keep before round twelve.**
 
-Every player commands **one brigade**. Five brigades make an army. Alone you
-command all five; with nine friends you command one each and the other side
-does the same. There is no chat. What your army can read is where your
-brigade stands, which way it is facing, and three signals a round — so
-coordination is something you demonstrate rather than something you announce.
+That is the whole game. Three minutes, one screen, four orders.
 
-The design thesis: **battles are the last ten percent.** Anyone can order an
-assault. The question is whether the brigade is fed, whether the guns came
-up, whether the pioneers built the depot three rounds ago, and whether your
-neighbour is still coiled in reserve or already committed.
+```bash
+python3 server.py          # then open http://localhost:8000
+```
 
-## State of the build
+Press **TEACH ME** for three short lessons, or **JUST PLAY**.
+
+## The three rules
+
+1. **Click a brigade, pick an order, click where you mean it.** Then COMMIT.
+   Every order happens at the same moment — yours and theirs together.
+2. **Stay in supply.** A brigade more than three regions from your keep, or
+   from a depot your engineers built, loses 2 strength a round and dies
+   without anyone fighting it. The green dots on the map are the regions you
+   can be fed in. *This is what kills people.*
+3. **Attack together.** Two brigades attacking the same region in the same
+   round arrive as one column and hit for +4. One alone usually bounces.
+
+Four orders: **MARCH**, **ATTACK**, **DIG IN**, **BUILD** (engineers only).
+Keys 1–4, Tab switches brigade, Enter commits.
+
+## The full campaign
+
+The small game above is the front door. The original 5-a-side campaign —
+nine orders, seven brigades, supply hubs, a points draft, rationed signals,
+and up to ten players — is still there at **`/campaign.html`**.
+
+It is a much bigger game and it takes real study. It grew that way by
+accretion over this project, and the small game exists because it had become
+something you have to learn before you can play it. Everything the small game
+teaches transfers: it runs on the same engine and the same `resolve()`.
 
 | | |
 |---|---|
-| `engine/` | the rules — deterministic, dependency-free |
-| `server.py` | online multiplayer: rooms, seats, the round clock, fog |
-| `web/index.html` | the browser client |
-| `engine/corps.py` | the Reserve Corps: keeps a lopsided match honest |
+| `engine/skirmish.py` | the small game: 3 brigades, 4 orders, one objective |
 | `engine/coach.py` | the trainer: warns before, explains after |
-| `sim.py` | headless match runner and balance harness |
-| `tests/` | 85 tests, engine and server |
-
-Not built yet: the order-of-battle draft (armies use a fixed book list), and
-reconnecting to a seat you dropped out of.
+| `engine/corps.py` | the Reserve Corps (campaign only) |
+| `web/index.html` | the small game's client |
+| `web/campaign.html` | the full campaign's client |
+| `tests/` | 106 tests |
 
 ## What it is meant to train
 
@@ -264,7 +278,7 @@ your tab waiting to be read out of memory by anyone who opens the console.
 
 ## Next
 
-1. The order-of-battle draft, so armies are chosen rather than issued.
-2. Scripted opening scenarios — two brigades, three rounds, one lesson each.
+1. Play the small game and see whether four orders is still three too many.
+2. A skill profile, so progress across the six faculties is visible.
 3. Reconnecting to a seat after a dropped connection.
-4. A skill profile, so progress across the six faculties is visible.
+4. The order-of-battle draft, for the campaign.
