@@ -29,18 +29,23 @@ import struct
 import sys
 import time
 
-from engine import (new_game, resolve, bot, Order, AZURE, CRIMSON, MAX_ROUNDS,
-                    Intel, view, validate)
+from engine import (new_game, resolve, bot, corps, coach, Order, AZURE,
+                    CRIMSON, MAX_ROUNDS, Intel, view, validate)
 from engine.constants import (ORDERS, TARGETED, SIGNAL_KINDS,
-                              SIGNALS_PER_ROUND, SIDE_NAMES, BRIGADE_STATS)
+                              SIGNALS_PER_ROUND, SIDE_NAMES, BRIGADE_STATS,
+                              MEMORY_ROUNDS)
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", 8000))
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
 
-PLAN_SECONDS = int(os.environ.get("COMPACT_PLAN", 60))
-RESOLVE_SECONDS = int(os.environ.get("COMPACT_RESOLVE", 9))
+# Fast on purpose. Long enough to think, short enough that most rounds are
+# read rather than calculated -- which is where pattern recognition comes
+# from -- and short enough that a whole campaign fits in about seven minutes,
+# so you play six of them and actually improve.
+PLAN_SECONDS = int(os.environ.get("COMPACT_PLAN", 25))
+RESOLVE_SECONDS = int(os.environ.get("COMPACT_RESOLVE", 6))
 LOBBY_IDLE_TTL = 900
 CODE_CHARS = "".join(c for c in string.ascii_uppercase + string.digits
                      if c not in "0O1IL")
@@ -125,15 +130,21 @@ class Room:
         self.state = new_game(seed=self.seed)
         self.phase = "lobby"          # lobby | planning | resolving | over
         self.ends_at = 0.0
+        # Only the commanded brigades get seats. The Reserve Corps has no
+        # seat by design -- nobody may sit in it.
         self.seats = []
-        for i, b in enumerate(self.state.brigades):
-            self.seats.append(Seat(i, b.side, b.id))
+        for b in self.state.brigades:
+            if not b.corps:
+                self.seats.append(Seat(len(self.seats), b.side, b.id))
         self.intel = {AZURE: Intel(), CRIMSON: Intel()}
         for side in (AZURE, CRIMSON):
             self.intel[side].update(self.state, side)
         self.signals = []             # recent, both sides, filtered on send
         self.signal_budget = {}       # seat -> used this round
         self.last_events = []
+        self.corps_notes = []         # what the Reserve Corps did, and why
+        self.coach_notes = {AZURE: [], CRIMSON: []}
+        self.ledger = {}              # brigade -> round it fell out of supply
         self.touched = time.time()
         self.clients = set()
 
@@ -224,6 +235,16 @@ def state_payload(room, seat):
         "signalsLeft": (SIGNALS_PER_ROUND
                         - room.signal_budget.get(seat.index, 0)) if seat else 0,
         "events": room.last_events,
+        "coach": room.coach_notes.get(side, []),
+        "warnings": (coach.warn(room.state, room.state.brigade(seat.brigade),
+                                seat.order)
+                     if seat and seat.order
+                     and room.state.brigade(seat.brigade).alive else []),
+        "corpsNotes": [n for n in room.corps_notes if n["side"] == side],
+        "corpsPosture": corps.posture(room.state, side),
+        "tilt": round(room.state.tilt(), 3),
+        "forgetAfter": MEMORY_ROUNDS,
+        "brief": coach.opening_brief(room.state, side),
         "verdict": room.state.verdict,
         "winner": room.state.winner,
         "hubsHeld": {str(s): len(room.state.hubs_held(s))
@@ -244,6 +265,7 @@ def begin_planning(room):
     room.phase = "planning"
     room.ends_at = time.time() + PLAN_SECONDS
     room.signal_budget = {}
+    room.corps_notes = room.corps_notes
     for s in room.seats:
         s.order = None
         s.committed = False
@@ -253,6 +275,7 @@ def begin_planning(room):
 def run_round(room):
     """Collect every order -- human where somebody is sitting, bot where
     nobody is -- and resolve them all at once."""
+    before = room.state
     orders = []
     bot_seats = {AZURE: set(), CRIMSON: set()}
     for s in room.seats:
@@ -269,10 +292,23 @@ def run_round(room):
         if bot_seats[side]:
             orders += bot.plan(room.state, side, seats=bot_seats[side])
 
+    # the Reserve Corps, which nobody sits in
+    notes = []
+    for side in (AZURE, CRIMSON):
+        c_orders, c_notes = corps.plan(room.state, side)
+        orders += c_orders
+        for n in c_notes:
+            n["side"] = side
+        notes += c_notes
+    room.corps_notes = notes
+
     room.state, events = resolve(room.state, orders)
     room.last_events = events
+    room.ledger = coach.track_supply(room.state, room.ledger)
     for side in (AZURE, CRIMSON):
         room.intel[side].update(room.state, side)
+        room.coach_notes[side] = coach.explain(before, room.state, events,
+                                               side, room.ledger)
 
     room.phase = "over" if room.state.over else "resolving"
     room.ends_at = time.time() + (0 if room.state.over else RESOLVE_SECONDS)

@@ -30,6 +30,23 @@ BRIGADE_STATS = {
                "punch": 0.40, "guard": 1.00, "points": 3},
 }
 
+# The Reserve Corps: two brigades a side that no player commands. The system
+# plays them, and it plays them for two reasons at once -- to keep a lopsided
+# match honest, and to demonstrate good command where a learning player can
+# watch it happen. Both sides always get the same corps, so it can never be
+# an advantage in itself.
+CORPS_ORDER_OF_BATTLE = (LINE, PIONEERS)
+CORPS_BRIGADES = len(CORPS_ORDER_OF_BATTLE)
+
+# How far behind a side must be before its corps starts pressing, and how far
+# ahead before its corps eases off. Measured in the tilt score below.
+CORPS_PRESS_AT = 0.18
+CORPS_EASE_AT = 0.18
+# what a lead is worth when measuring who is ahead
+TILT_HUB = 3.0
+TILT_REGION = 0.30
+TILT_STRENGTH = 0.10
+
 DRAFT_BUDGET = 16
 DRAFT_BRIGADES = 5
 # at most this many of one kind in a single order of battle
@@ -113,6 +130,13 @@ DEPOT_BUILD_ROUNDS = 1         # pioneers only
 STARVE_LOSS = 2                # strength lost per round out of supply
 FORAGE_ROUNDS = 2              # rounds a region will feed a brigade
 REFIT_GAIN = 1                 # strength recovered by HOLD while supplied
+
+# ---------------------------------------------------------------- memory
+# How long a sighting stays in a side's memory. Terrain and who owns what is
+# long-term knowledge and never fades; where an enemy brigade was standing is
+# short-term, and after this many rounds it is gone from the display. You are
+# expected to remember it yourself -- that is the exercise.
+MEMORY_ROUNDS = 3
 
 # ---------------------------------------------------------------- signals
 SIGNALS_PER_ROUND = 3

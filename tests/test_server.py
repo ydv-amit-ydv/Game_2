@@ -171,9 +171,12 @@ class TestRoom(ServerCase):
             return st
         st = run(go())
         self.assertIsNotNone(st["you"])
-        self.assertEqual(len(st["seats"]), 10)
+        self.assertEqual(len(st["seats"]), 10,
+                         "ten seats: five commanded brigades a side")
         bots = [s for s in st["seats"] if s["bot"]]
         self.assertEqual(len(bots), 9, "every empty seat should hold a bot")
+        self.assertEqual(st["corpsPosture"], "STEADY",
+                         "an even match needs no intervention")
 
     def test_a_second_player_can_join_by_code(self):
         async def go():
@@ -333,7 +336,10 @@ class TestFog(ServerCase):
             return st
         st = run(go())
         mine = [b for b in st["brigades"] if b.get("mine")]
-        self.assertEqual(len(mine), 5)
+        self.assertEqual(len(mine), 7, "five commanded brigades plus the corps")
+        self.assertEqual(len([b for b in mine if b.get("corps")]), 2)
+        self.assertEqual(len([b for b in st["seats"] if b["side"] == mine[0]["side"]]),
+                         5, "the corps must never be a seat anyone can take")
 
 
 if __name__ == "__main__":

@@ -11,16 +11,18 @@ import json
 
 from .constants import (BRIGADE_STATS, DRAFT_BUDGET, DRAFT_BRIGADES, DRAFT_CAP,
                         KINDS, LINE, LIGHT, HORSE, GUNS, PIONEERS,
-                        TERRAIN_FORAGE, AZURE, CRIMSON, MAX_ROUNDS)
+                        TERRAIN_FORAGE, AZURE, CRIMSON, MAX_ROUNDS,
+                        CORPS_ORDER_OF_BATTLE, TILT_HUB, TILT_REGION,
+                        TILT_STRENGTH)
 from .hexmap import HexMap, generate
 
 
 class Brigade:
     __slots__ = ("id", "side", "kind", "commander", "strength", "max_strength",
                  "region", "entrenched", "in_reserve", "supplied",
-                 "forage_used", "alive", "balk_at", "balk_for")
+                 "forage_used", "alive", "balk_at", "balk_for", "corps")
 
-    def __init__(self, bid, side, kind, commander, region):
+    def __init__(self, bid, side, kind, commander, region, corps=False):
         st = BRIGADE_STATS[kind]
         self.id = bid
         self.side = side
@@ -39,6 +41,7 @@ class Brigade:
         # until the brigade is gone.
         self.balk_at = None
         self.balk_for = 0
+        self.corps = corps
 
     @property
     def stats(self):
@@ -123,6 +126,29 @@ class GameState:
     def strength(self, side):
         return sum(b.strength for b in self.living(side))
 
+    def corps_of(self, side):
+        return [b for b in self.living(side) if b.corps]
+
+    def commanded(self, side):
+        """Brigades a player (or a seat bot) holds -- everything but the corps."""
+        return [b for b in self.living(side) if not b.corps]
+
+    def tilt(self):
+        """Who is ahead, and by how much, from -1 (Crimson) to +1 (Azure).
+
+        The Reserve Corps reads this to decide whether to press or ease off,
+        so it is deliberately simple and deliberately public: a player can
+        work out the same number from what is on screen."""
+        score = {}
+        for side in self.sides():
+            score[side] = (TILT_HUB * len(self.hubs_held(side))
+                           + TILT_REGION * len(self.regions_held(side))
+                           + TILT_STRENGTH * self.strength(side))
+        total = score[AZURE] + score[CRIMSON]
+        if total <= 0:
+            return 0.0
+        return (score[AZURE] - score[CRIMSON]) / total
+
     # ------------------------------------------------------------ plumbing
     def copy(self):
         s = GameState.__new__(GameState)
@@ -175,6 +201,7 @@ COMMANDER_NAMES = {
     AZURE: ("VEGA", "BRINE", "MARROW", "KESTREL", "PIKE"),
     CRIMSON: ("HALLOW", "TOLL", "SPAR", "RIME", "GALL"),
 }
+CORPS_NAMES = ("RESERVE", "ENGINEERS")
 
 
 def validate_order_of_battle(kinds):
@@ -193,8 +220,12 @@ def validate_order_of_battle(kinds):
     return True, ""
 
 
-def new_game(seed=0, w=11, h=7, orders_of_battle=None, names=None):
-    """Lay out a fresh match. `orders_of_battle` is {side: [kind, ...]}."""
+def new_game(seed=0, w=11, h=7, orders_of_battle=None, names=None, corps=True):
+    """Lay out a fresh match. `orders_of_battle` is {side: [kind, ...]}.
+
+    With `corps`, each side also fields the two-brigade Reserve Corps that
+    the system commands. Both sides get the same one, so it never tilts the
+    ground -- what it does with them is where the balancing happens."""
     hexmap = generate(seed, w, h)
     regions = [Region(i, hexmap.terrain[i]) for i in range(w * h)]
 
@@ -222,6 +253,12 @@ def new_game(seed=0, w=11, h=7, orders_of_battle=None, names=None):
                                     side_names[i % len(side_names)],
                                     spots[i % len(spots)]))
             bid += 1
+        if corps:
+            for j, kind in enumerate(CORPS_ORDER_OF_BATTLE):
+                brigades.append(Brigade(bid, side, kind, CORPS_NAMES[j],
+                                        spots[(len(kinds) + j) % len(spots)],
+                                        corps=True))
+                bid += 1
         regions[cap].owner = side
         for r in hexmap.adj(cap):
             if hexmap.passable(r):

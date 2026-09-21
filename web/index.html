@@ -92,6 +92,20 @@ canvas{display:block}
 #orderVerb{font-family:var(--mono);font-size:10px;letter-spacing:1.8px;color:var(--brass)}
 #orderText{font-size:12px;color:var(--dim)}
 #orderText b{color:var(--brass2)}
+.warn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;
+  padding:4px 10px;border-radius:4px;margin-left:8px}
+.warn.risk{background:rgba(224,103,90,.14);color:#f0a79e;border:1px solid rgba(224,103,90,.4)}
+.warn.care{background:rgba(232,161,58,.13);color:#f0c078;border:1px solid rgba(232,161,58,.36)}
+.warn.note{background:rgba(135,154,173,.12);color:var(--dim)}
+.cnote{font-size:11px;line-height:1.45;padding-left:8px;border-left:2px solid var(--line2);
+  color:var(--dim)}
+.cnote.risk{border-left-color:var(--cr)}
+.cnote.care{border-left-color:var(--warn)}
+.cnote.note{border-left-color:var(--brass2)}
+.cnote b{color:var(--text)}
+.corpsRow{font-size:10.5px;line-height:1.4;color:var(--dim);padding-left:8px;
+  border-left:2px solid var(--brass2)}
+.corpsRow b{color:var(--brass2);font-family:var(--mono);font-size:9px;letter-spacing:1px}
 #verbs{display:flex;align-items:stretch;gap:7px;flex:1}
 .verb{width:96px;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
@@ -175,8 +189,11 @@ input.code{font-family:var(--mono);letter-spacing:3px;text-transform:uppercase}
       <div class="head">THE GROUND<span class="sp"></span><span class="chip" id="groundChip"
         style="color:var(--brass);background:rgba(201,162,39,.12)">NONE</span></div>
       <div id="ground" style="display:flex;flex-direction:column;gap:5px"></div>
-      <div class="head">LAST ROUND</div>
-      <div id="log"></div>
+      <div class="head">TRAINER<span class="sp"></span><span class="chip" id="corpsChip"
+        style="color:var(--brass2);background:rgba(230,196,92,.12)">STEADY</span></div>
+      <div id="coach"></div>
+      <div class="head">RESERVE CORPS</div>
+      <div id="corps" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
     <div id="mapWrap">
@@ -208,6 +225,8 @@ input.code{font-family:var(--mono);letter-spacing:3px;text-transform:uppercase}
     <div id="orderLine">
       <span id="orderVerb">NO ORDER</span>
       <span id="orderText">Pick an order, then click the ground you mean.</span>
+      <span class="sp" style="flex:1"></span>
+      <span id="warnStrip"></span>
     </div>
     <div style="display:flex;gap:8px;flex:1">
       <div id="verbs"></div>
@@ -421,12 +440,14 @@ function render(){
 
   S.signals.forEach(g => signalMark(g));
   S.brigades.forEach(b => counter(b));
+  remembered().forEach(b => counter(b));
 }
 
 function counter(b){
   const [x,y] = cen(b.region), r = geom.r, col = SIDE_COL[b.side];
   const w = Math.min(r*1.15, 54), h = w*0.54;
   ctx.save();
+  if (b.fadeAge){ ctx.globalAlpha = Math.max(0.25, 1 - b.fadeAge*0.22); }
   ctx.font = "600 " + Math.round(r*0.19) + "px var(--mono),monospace";
   ctx.textAlign = "center"; ctx.fillStyle = col;
   ctx.fillText("X", x, y - h/2 - r*0.12);
@@ -441,10 +462,36 @@ function counter(b){
   ctx.globalAlpha=1;
   ctx.fillStyle = col; ctx.font = "600 " + Math.round(h*0.52) + "px var(--mono),monospace";
   ctx.fillText(String(b.strength), x + w*0.31, y + h*0.19);
-  if (b.reserve){ ctx.fillStyle="#e6c45c"; ctx.font = Math.round(r*0.17)+"px var(--mono),monospace";
-    ctx.fillText("RESERVE", x, y + h/2 + r*0.27); }
+  if (b.corps){
+    ctx.strokeStyle = "#e6c45c"; ctx.lineWidth = 1.4;
+    ctx.setLineDash([3,3]); ctx.strokeRect(x-w/2-3, y-h/2-3, w+6, h+6);
+    ctx.setLineDash([]);
+  }
+  let tag = b.reserve ? "RESERVE" : b.fadeAge ? ("SEEN R" + b.seenRound) : "";
+  if (tag){ ctx.fillStyle = b.fadeAge ? "#879aad" : "#e6c45c";
+    ctx.font = Math.round(r*0.17)+"px var(--mono),monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(tag, x, y + h/2 + r*0.27); }
   ctx.restore();
 }
+/* Enemy counters you saw but can no longer see. They fade with age and the
+   server stops sending them entirely once the memory is gone -- holding on
+   to where they went is the player's job, not the display's. */
+function remembered(){
+  if (!S || !S.intel) return [];
+  const lit = new Set(S.visible), out = [];
+  Object.keys(S.intel.regions || {}).forEach(k => {
+    const info = S.intel.regions[k], rid = parseInt(k, 10);
+    if (lit.has(rid) || !info.enemies || !info.enemies.length) return;
+    info.enemies.forEach(e => out.push({
+      id: -1, side: e.side, kind: e.kind, strength: e.strength,
+      commander: e.commander, region: rid, supplied: true,
+      fadeAge: info.age, seenRound: info.seen, corps: false
+    }));
+  });
+  return out;
+}
+
 function branch(kind,x,y,s,col){
   ctx.save(); ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=Math.max(1.3,s*0.16);
   ctx.beginPath();
@@ -562,11 +609,38 @@ function sidebars(){
     sl.appendChild(d);
   });
 
-  $("log").innerHTML = "";
-  (S.events || []).slice(0,7).forEach(e => {
-    const txt = describe(e); if (!txt) return;
-    const d = document.createElement("div"); d.className = "ev"; d.innerHTML = txt;
-    $("log").appendChild(d);
+  const co = $("coach"); co.innerHTML = "";
+  const notes = (S.coach || []);
+  if (!notes.length){
+    co.innerHTML = '<div class="cnote note">' + (S.round <= 1 && S.brief ? S.brief
+      : "Nothing to flag last round.") + '</div>';
+  } else notes.forEach(n => {
+    const d = document.createElement("div");
+    d.className = "cnote " + n.level; d.textContent = n.text;
+    co.appendChild(d);
+  });
+
+  const posture = S.corpsPosture || "STEADY";
+  const pc = $("corpsChip");
+  pc.textContent = posture;
+  pc.style.color = posture === "PRESSING" ? "var(--cr)"
+    : posture === "EASING" ? "var(--green)" : "var(--brass2)";
+  const cbox = $("corps"); cbox.innerHTML = "";
+  const why = posture === "PRESSING"
+      ? "You are behind, so the corps is pressing to keep this honest."
+    : posture === "EASING"
+      ? "You are ahead, so the corps is easing off rather than piling on."
+      : "The match is even, so the corps is just playing straight.";
+  const lead = document.createElement("div");
+  lead.className = "corpsRow"; lead.textContent = why;
+  cbox.appendChild(lead);
+  (S.corpsNotes || []).forEach(n => {
+    const b = S.brigades.find(x => x.id === n.brigade);
+    const d = document.createElement("div");
+    d.className = "corpsRow";
+    d.innerHTML = "<b>" + ((b && b.commander) || "CORPS") + " " + n.verb
+      + "</b> — " + n.why;
+    cbox.appendChild(d);
   });
   ground();
 }
@@ -635,6 +709,14 @@ function verbBar(){
     : def[3] + (sel.target !== null ? " <b>Region " + sel.target + ".</b>" : "");
   document.querySelectorAll(".sig").forEach(b =>
     b.classList.toggle("on", b.dataset.sig === sigMode));
+
+  // what this order is about to cost -- a warning, never a decision
+  const ws = $("warnStrip"); ws.innerHTML = "";
+  (S && S.warnings ? S.warnings : []).slice(0,2).forEach(w => {
+    const e = document.createElement("span");
+    e.className = "warn " + w.level; e.textContent = w.text;
+    ws.appendChild(e);
+  });
 }
 
 function chooseVerb(name){

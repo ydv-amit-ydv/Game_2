@@ -15,8 +15,8 @@ import argparse
 import collections
 import sys
 
-from engine import (new_game, resolve, bot, match_summary, MAX_ROUNDS,
-                    AZURE, CRIMSON, DEFAULT_ORDER_OF_BATTLE)
+from engine import (new_game, resolve, bot, corps, coach, match_summary,
+                    MAX_ROUNDS, AZURE, CRIMSON, DEFAULT_ORDER_OF_BATTLE)
 from engine.constants import SIDE_NAMES, BRIGADE_STATS, LINE, LIGHT, HORSE, GUNS, PIONEERS
 
 # every draft here is legal: five brigades, within the caps, inside budget
@@ -28,14 +28,27 @@ DRAFTS = [
 ]
 
 
-def run(seed=0, draft_a=0, draft_b=0, log=None):
+def orders_for(state, side, with_corps=True):
+    """Seat bots command the five drafted brigades; the Reserve Corps is
+    commanded by its own module, exactly as the server does it."""
+    seats = {b.id for b in state.commanded(side)}
+    out = bot.plan(state, side, seats=seats)
+    if with_corps:
+        out += corps.plan(state, side)[0]
+    else:
+        out += bot.plan(state, side, seats={b.id for b in state.corps_of(side)})
+    return out
+
+
+def run(seed=0, draft_a=0, draft_b=0, log=None, with_corps=True):
     state = new_game(seed=seed, orders_of_battle={
         AZURE: DRAFTS[draft_a % len(DRAFTS)],
         CRIMSON: DRAFTS[draft_b % len(DRAFTS)],
     })
     history = []
     while not state.over:
-        orders = bot.plan(state, AZURE) + bot.plan(state, CRIMSON)
+        orders = (orders_for(state, AZURE, with_corps)
+                  + orders_for(state, CRIMSON, with_corps))
         state, events = resolve(state, orders)
         history.append((state.round, events))
         if log:

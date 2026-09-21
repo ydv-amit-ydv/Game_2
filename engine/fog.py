@@ -6,7 +6,7 @@ see, and you remember what you saw. Memory goes stale — an enemy counter
 you spotted four rounds ago is drawn where it was, not where it is, and the
 client is told how old that sighting is so it can say so.
 """
-from .constants import CRIMSON, AZURE
+from .constants import CRIMSON, AZURE, MEMORY_ROUNDS
 
 
 def visible(state, side):
@@ -42,15 +42,38 @@ class Intel:
         return vis
 
     def to_dict(self, state, side):
+        """What this side may be shown.
+
+        Two kinds of knowledge, deliberately treated differently. Who owns
+        what, and what the ground is, is long-term: once learned it stays.
+        Where an enemy brigade was standing is short-term, and after
+        MEMORY_ROUNDS it is dropped from the display entirely -- not greyed
+        out, gone. Remembering it is the player's job, and that is the
+        exercise."""
         vis = visible(state, side)
-        out = {"visible": sorted(vis), "regions": {}}
+        out = {"visible": sorted(vis), "regions": {}, "forgetAfter": MEMORY_ROUNDS}
         for rid, rnd in sorted(self.seen_round.items()):
+            age = state.round - rnd
+            lit = rid in vis
+            if lit:
+                # you are looking at it: report what is there, not what the
+                # cache last happened to record
+                sightings = [
+                    {"kind": b.kind, "side": b.side, "strength": b.strength,
+                     "commander": b.commander}
+                    for b in sorted(state.at(rid), key=lambda x: x.id)
+                    if b.side != side]
+            elif age > MEMORY_ROUNDS:
+                sightings = []                  # the memory has gone
+            else:
+                sightings = self.sightings.get(rid, [])
             out["regions"][str(rid)] = {
                 "seen": rnd,
-                "stale": rid not in vis,
-                "age": state.round - rnd,
+                "stale": not lit,
+                "age": age,
+                "fading": (not lit) and age > 0,
                 "owner": self.owner.get(rid),
-                "enemies": self.sightings.get(rid, []),
+                "enemies": sightings,
             }
         return out
 
@@ -91,12 +114,14 @@ def view(state, side, intel=None):
                 "max": b.max_strength, "region": b.region,
                 "entrenched": b.entrenched, "reserve": b.in_reserve,
                 "supplied": b.supplied, "stale": False, "mine": True,
+                "corps": b.corps, "balkAt": b.balk_at,
             })
         elif b.region in vis:
             out["brigades"].append({
                 "id": b.id, "side": b.side, "kind": b.kind,
                 "commander": b.commander, "strength": b.strength,
                 "region": b.region, "stale": False, "mine": False,
+                "corps": b.corps,
             })
         elif intel and b.region in intel.seen_round:
             pass                     # remembered counters come from Intel

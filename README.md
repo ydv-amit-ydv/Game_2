@@ -1,7 +1,8 @@
 # THE IRON COMPACT
 
-A simultaneous-turn operational wargame for 2–10 players, with bots filling
-whatever seats nobody is sitting in.
+A fast simultaneous-turn wargame for 2–10 players, built to train rather
+than drain. A campaign runs about seven minutes on a 25-second round clock —
+short enough that you play six of them and actually get better.
 
 Every player commands **one brigade**. Five brigades make an army. Alone you
 command all five; with nine friends you command one each and the other side
@@ -21,11 +22,33 @@ neighbour is still coiled in reserve or already committed.
 | `engine/` | the rules — deterministic, dependency-free |
 | `server.py` | online multiplayer: rooms, seats, the round clock, fog |
 | `web/index.html` | the browser client |
+| `engine/corps.py` | the Reserve Corps: keeps a lopsided match honest |
+| `engine/coach.py` | the trainer: warns before, explains after |
 | `sim.py` | headless match runner and balance harness |
-| `tests/` | 62 tests, engine and server |
+| `tests/` | 85 tests, engine and server |
 
 Not built yet: the order-of-battle draft (armies use a fixed book list), and
 reconnecting to a seat you dropped out of.
+
+## What it is meant to train
+
+Brain drain is high load with no learning — unclear causality, fatal
+mistakes, no visible progress. Training is load pitched just above your
+current ability with fast, legible feedback. Six faculties, each with a
+mechanic behind it rather than a claim:
+
+| Faculty | What trains it |
+|---|---|
+| **Short-term memory** | An enemy you spotted fades and then **vanishes** after 3 rounds. Remembering where they went is your job. |
+| **Long-term memory** | Ownership and terrain are never forgotten. Map shapes and opponent habits recur. |
+| **Short-term strategy** | One order under a 25-second clock. |
+| **Long-term strategy** | Depots and supply chains that pay off six rounds later. |
+| **Planning** | Supply reaches three regions. Everything you do is bounded by a chain you laid earlier. |
+| **Pattern recognition** | The clock is short on purpose. Most rounds must be read, not calculated — which is exactly how the reading gets good. |
+
+Causality is the load-bearing part. Losing a brigade in round nine because a
+road was cut in round six is the single most common way this game goes
+opaque, so the room keeps a ledger and the coach names the round it started.
 
 ## Play it
 
@@ -55,6 +78,51 @@ python3 -m unittest discover -s tests           # the whole suite
 ```
 
 No dependencies. Python 3.8+.
+
+## The Reserve Corps
+
+Two brigades a side that **nobody may sit in**. Both armies get the same
+corps, so it can never be an advantage in itself — what it *does* with them
+is where the balancing happens.
+
+It reads how far its own side is ahead or behind and leans: **PRESSING**
+when its army is losing, **EASING** when its army is winning, **STEADY**
+when the match is even. It leans; it does not throw matches. A side
+handicapped to 65% strength goes from winning **8.3%** of matches to
+**30.8%** — enough to make a bad start survivable, not enough to hand
+anyone a win they did not earn.
+
+It is also a teaching device. Whatever the tilt, it plays legibly — keeps
+its supply, concentrates with a neighbour rather than attacking alone,
+builds depots before they are needed — and **every order it gives comes back
+with a reason attached**, printed on screen. Watching RESERVE and ENGINEERS
+for one match shows you the grammar of the game played correctly.
+
+The intervention is always visible. Hidden rubber-banding reads as cheating
+the moment a player suspects it, so the posture and the reason are both on
+the left rail.
+
+An unintended benefit worth recording: the corps carries the engineers, and
+that **fixed the compulsory-Pioneers problem**. Draft win rates went from
+`62 / 47 / 40 / 2` to `29 / 40 / 29 / 52` — a spread of 56 points down to
+21, and all four drafts viable.
+
+## The trainer
+
+`engine/coach.py`. It warns, it never decides — a trainer that plays the
+game for you trains nothing.
+
+**Before you commit** it reads the order and says what it will cost: that
+the ground is outside your supply, that guns eat 3 a round and this is how
+artillery is usually lost, that you are lighter than what is holding the
+region and a second brigade is worth +4, that this ground already threw you
+off once. At most three warnings, worst first.
+
+**After the round** it explains what happened and when it started — *"Kestrel
+is gone. It had been out of supply since round 6."*
+
+Both are read-only over the state; `tests/test_trainer.py` asserts the coach
+never changes the game.
 
 ## The engine
 
@@ -196,7 +264,7 @@ your tab waiting to be read out of memory by anyone who opens the console.
 
 ## Next
 
-1. Tune the Pioneers dependency out of being compulsory.
-2. The order-of-battle draft, so armies are chosen rather than issued.
+1. The order-of-battle draft, so armies are chosen rather than issued.
+2. Scripted opening scenarios — two brigades, three rounds, one lesson each.
 3. Reconnecting to a seat after a dropped connection.
-4. A spectator view for a big screen.
+4. A skill profile, so progress across the six faculties is visible.
