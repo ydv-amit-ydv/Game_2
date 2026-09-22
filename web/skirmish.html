@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Iron Compact — Skirmish</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#0e1319; --panel:#161d27; --panel2:#1d2734; --panel3:#24303f;
+  --line:#2a3644; --line2:#3a4a5e; --text:#e9e5db; --dim:#9db0c2; --dim2:#879aad;
+  --brass:#c9a227; --brass2:#e6c45c; --az:#5aa9e6; --cr:#e0675a;
+  --green:#5fd4a8; --warn:#e8a13a;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  --serif:Spectral,Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--ink);color:var(--text);
+  font:15px/1.5 'IBM Plex Sans',system-ui,sans-serif;overflow:hidden}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+#app{display:flex;flex-direction:column;height:100%}
+
+/* ---------- the one line that says what to do ---------- */
+#goal{flex-shrink:0;display:flex;align-items:center;gap:16px;padding:12px 22px;
+  background:linear-gradient(90deg,rgba(201,162,39,.16),rgba(201,162,39,.04));
+  border-bottom:1px solid rgba(201,162,39,.35)}
+#goalText{font-family:var(--serif);font-size:21px;font-weight:600;
+  letter-spacing:.4px;color:var(--brass2)}
+#goalSub{font-family:var(--mono);font-size:11.5px;letter-spacing:1.3px;color:var(--dim)}
+#clock{margin-left:auto;display:flex;align-items:center;gap:12px}
+#timer{font-family:var(--mono);font-size:22px;font-weight:600;
+  font-variant-numeric:tabular-nums;text-align:right;color:var(--text)}
+#phase{font-family:var(--mono);font-size:10.5px;letter-spacing:2px;color:var(--brass)}
+
+/* ---------- the board ---------- */
+#stage{flex:1;display:flex;min-height:0}
+#mapWrap{flex:1;position:relative;display:flex;align-items:center;justify-content:center}
+canvas{display:block}
+#say{position:absolute;left:50%;transform:translateX(-50%);top:14px;
+  font-size:13px;color:var(--brass2);background:rgba(12,19,25,.95);
+  border:1px solid var(--line2);border-radius:6px;padding:9px 16px;
+  pointer-events:none;opacity:0;transition:opacity .2s;max-width:70%}
+#say.on{opacity:1}
+
+/* ---------- your three brigades ---------- */
+#side{width:290px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--line);
+  padding:16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+.hd{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--brass);
+  padding-bottom:6px;border-bottom:1px solid var(--line)}
+.brig{background:var(--panel2);border:1px solid var(--line2);border-radius:7px;
+  padding:11px 12px;cursor:pointer;transition:border-color .12s,background .12s}
+.brig:hover{border-color:var(--dim2)}
+.brig.sel{border-color:var(--brass);background:rgba(201,162,39,.12)}
+.brig .top{display:flex;align-items:baseline;gap:8px}
+.brig .nm{font-family:var(--serif);font-size:17px;font-weight:600}
+.brig .str{margin-left:auto;font-family:var(--mono);font-size:16px;font-weight:600;
+  color:var(--az)}
+.brig .sub{font-size:11.5px;color:var(--dim);margin-top:5px;line-height:1.45}
+.brig .sub b{color:var(--text)}
+.brig .stats{display:flex;gap:12px;margin-top:5px;font-family:var(--mono);
+  font-size:8.5px;letter-spacing:1px;color:var(--dim2)}
+.brig .stats b{color:var(--az);font-size:10px}
+.brig .ord{font-family:var(--mono);font-size:10.5px;letter-spacing:1.2px;margin-top:6px}
+.tag{font-family:var(--mono);font-size:9px;letter-spacing:1px;padding:2px 6px;
+  border-radius:3px}
+#advice{display:flex;flex-direction:column;gap:7px}
+#rulesBox{display:flex;flex-direction:column;gap:8px}
+.rl{font-size:11.5px;line-height:1.5;color:var(--dim)}
+.rl b{display:block;color:var(--brass2);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:1.2px;margin-bottom:2px}
+.note{font-size:12.5px;line-height:1.5;padding:9px 11px;border-radius:5px;
+  border-left:3px solid var(--line2);background:rgba(255,255,255,.03);color:var(--dim)}
+.note.risk{border-left-color:var(--cr);color:#f0a79e;background:rgba(224,103,90,.1)}
+.note.care{border-left-color:var(--warn);color:#f0c078;background:rgba(232,161,58,.09)}
+.note.note{border-left-color:var(--brass2)}
+
+/* ---------- the four orders ---------- */
+#bar{flex-shrink:0;background:var(--panel);border-top:1px solid var(--line);
+  padding:14px 22px;display:flex;align-items:center;gap:12px}
+.ord{flex:1;max-width:190px;background:var(--panel2);border:1px solid var(--line2);
+  border-radius:8px;padding:13px 12px;text-align:left;transition:all .12s}
+.ord:hover:not(:disabled){border-color:var(--dim2)}
+.ord.on{background:rgba(201,162,39,.16);border-color:var(--brass)}
+.ord:disabled{opacity:.35;cursor:default}
+.ord .k{font-family:var(--mono);font-size:13px;letter-spacing:2px;font-weight:600}
+.ord.on .k{color:var(--brass2)}
+.ord .d{font-size:11.5px;color:var(--dim2);margin-top:3px;line-height:1.35}
+#go{flex-shrink:0;background:var(--brass);color:#10161d;border-radius:8px;
+  padding:0 34px;height:62px;font-family:var(--mono);font-size:15px;font-weight:600;
+  letter-spacing:2.5px}
+#go:disabled{background:var(--panel3);color:var(--dim2);cursor:default}
+
+/* ---------- overlay ---------- */
+#veil{position:fixed;inset:0;background:rgba(8,12,17,.95);display:flex;
+  align-items:center;justify-content:center;z-index:30;padding:20px}
+#veil.off{display:none}
+#card{width:min(620px,100%);background:var(--panel);border:1px solid var(--line2);
+  border-radius:12px;padding:30px 32px;max-height:92vh;overflow-y:auto}
+#card h1{font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:2px;
+  color:var(--brass2)}
+#card h2{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--brass2);
+  margin-bottom:6px}
+#card p{font-size:14px;color:var(--dim);margin-top:10px;line-height:1.65}
+#rules{margin-top:18px;display:flex;flex-direction:column;gap:9px}
+.rule{display:flex;gap:11px;align-items:flex-start;font-size:13.5px;color:var(--dim);
+  line-height:1.5}
+.rule b{color:var(--text)}
+.num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:rgba(201,162,39,.16);
+  color:var(--brass2);font-family:var(--mono);font-size:11px;display:flex;
+  align-items:center;justify-content:center;margin-top:1px}
+.row{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.btn{background:var(--brass);color:#10161d;border-radius:7px;padding:13px 22px;
+  font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:1.6px}
+.btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--dim)}
+#err{color:var(--cr);font-size:13px;margin-top:12px;min-height:18px}
+.tp{background:var(--panel2);border:1px solid var(--line2);border-radius:7px;padding:11px 13px}
+.tn{font-family:var(--serif);font-size:17px;font-weight:600;color:var(--brass2)}
+.ts{font-family:var(--mono);font-size:10px;letter-spacing:1.1px;color:var(--az);margin-top:2px}
+.td{font-size:12.5px;color:var(--dim);margin-top:5px;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="goal">
+    <div>
+      <div id="goalText">Take the enemy keep</div>
+      <div id="goalSub">—</div>
+    </div>
+    <div id="clock">
+      <span id="phase">YOUR MOVE</span>
+      <span id="timer">1 / 12</span>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div id="mapWrap"><canvas id="map"></canvas><div id="say"></div></div>
+    <div id="side">
+      <div class="hd">YOUR BRIGADES</div>
+      <div id="brigades" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="hd" style="margin-top:6px">WHAT HAPPENED</div>
+      <div id="advice"></div>
+      <div class="hd" style="margin-top:6px">HOW IT WORKS</div>
+      <div id="rulesBox"></div>
+    </div>
+  </div>
+
+  <div id="bar">
+    <div id="orders" style="display:flex;gap:10px;flex:1"></div>
+    <button id="go" disabled>COMMIT</button>
+  </div>
+</div>
+
+<div id="veil">
+  <div id="card">
+    <h1>THE IRON COMPACT</h1>
+    <p>You command three brigades. <b style="color:var(--brass2)">Take the
+       enemy keep before round twelve.</b> That is the whole game.</p>
+    <div id="rules">
+      <div class="rule"><span class="num">1</span><span><b>Click a brigade,
+        pick an order, click where you mean.</b> Then press GO. There is no
+        clock — the round resolves the moment you are ready.</span></div>
+      <div class="rule"><span class="num">2</span><span><b>Stay in supply.</b>
+        A brigade more than three regions from your keep — or from a depot
+        your engineers built — loses strength every round and dies without
+        anyone fighting it. This is what kills people.</span></div>
+      <div class="rule"><span class="num">3</span><span><b>Attack together.</b>
+        Two brigades attacking the same region in the same round arrive as one
+        and hit much harder. One alone usually bounces off.</span></div>
+    </div>
+    <h2 style="margin-top:24px;font-size:17px">Your three brigades</h2>
+    <div id="troops" style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+      <div class="tp"><div class="tn">FOOT</div><div class="ts">12 strength · moves 1 · attacks full · defends strong</div>
+        <div class="td">Your hammer. The only brigade that can take ground and still be standing on it next round.</div></div>
+      <div class="tp"><div class="tn">HORSE</div><div class="ts">7 strength · moves 2 · attacks fair · defends poor</div>
+        <div class="td">Your speed. Two regions a round — gets behind them and takes empty ground. Do not leave it somewhere it has to defend.</div></div>
+      <div class="tp"><div class="tn">ENGINEERS</div><div class="ts">5 strength · moves 1 · barely fights</div>
+        <div class="td">Your range. BUILD puts a depot under its feet, and a depot feeds everything within 3 regions. This is how your army gets further than 3 regions from home.</div></div>
+    </div>
+    <div class="row">
+      <button class="btn" id="learnBtn">TEACH ME — 3 SHORT LESSONS</button>
+      <button class="btn ghost" id="playBtn">JUST PLAY</button>
+    </div>
+    <p style="font-size:12px;margin-top:18px;color:var(--dim2)">Looking for the
+      full 5-a-side campaign with nine orders and supply hubs? It is still
+      there at <a href="/campaign.html" style="color:var(--brass2)">/campaign.html</a>.</p>
+    <div id="err"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const SIDE_COL = ["#5aa9e6","#e0675a"];
+const FILL = {PLAIN:"#19212c",WOOD:"#18251f",HILL:"#232c35",FORD:"#16242f",
+              MOUNTAIN:"#212a35",WATER:"#101a26"};
+let ws=null, S=null, sel=null, verb=null, geom=null, hover=-1, tick=null, endsAt=0, planLen=20;
+const $ = id => document.getElementById(id);
+const cv = $("map"), ctx = cv.getContext("2d");
+
+function connect(){
+  const p = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(p + "://" + location.host + "/ws");
+  ws.onmessage = e => onMsg(JSON.parse(e.data));
+  ws.onclose = () => { $("err").textContent = "connection lost — reload the page"; };
+}
+const tx = o => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
+
+function onMsg(m){
+  if (m.t === "error"){ $("err").textContent = m.why; return; }
+  if (m.t === "reject"){ say(m.why); return; }
+  if (m.t === "state"){ S = m; onState(); }
+}
+
+function onState(){
+  $("veil").classList.toggle("off", S.phase !== "lobby");
+  const o = S.objective;
+  if (o){
+    $("goalText").textContent = S.lesson ? S.lesson.goal : o.text;
+    $("goalSub").textContent = (S.lesson ? "LESSON — " + S.lesson.title.toUpperCase() + " · " : "")
+      + o.detail.toUpperCase();
+  }
+  $("phase").textContent = S.phase === "resolving" ? "ORDERS LANDING" : "ROUND";
+  $("timer").textContent = S.round + " / " + (S.maxRoundsHere || 12);
+  endsAt = Date.now() + S.seconds*1000;
+  if (S.committed){ verb = null; }
+  if (sel === null || !mine().some(b => b.id === sel)) sel = (mine()[0]||{}).id;
+  if (S.over) finish();
+  layout(); draw(); panel(); orderBar();
+  if (S.timed) runClock();
+}
+const mine = () => !S ? [] : S.brigades.filter(b => b.mine && (S.yourBrigades||[]).includes(b.id));
+const orderOf = id => (S && S.orders) ? S.orders[String(id)] : null;
+
+function runClock(){
+  if (tick) clearInterval(tick);
+  const paint = () => {
+    const left = Math.max(0, Math.round((endsAt - Date.now())/1000));
+    $("timer").textContent = left;
+    $("timer").style.color = left <= 5 && S && S.phase === "planning"
+      ? "var(--cr)" : "var(--text)";
+  };
+  paint(); tick = setInterval(paint, 200);
+}
+
+/* ---------------- board ---------------- */
+function layout(){
+  if (!S) return;
+  const W = $("mapWrap").clientWidth - 20, H = $("mapWrap").clientHeight - 20;
+  const mw = S.map.w, mh = S.map.h;
+  const r = Math.min(W/(1.5*mw + .5), H/(Math.sqrt(3)*(mh + .5)));
+  const gw = 1.5*r*(mw-1) + 2*r, gh = Math.sqrt(3)*r*(mh + .5);
+  geom = {r, x0:(W-gw)/2 + r + 10, y0:(H-gh)/2 + Math.sqrt(3)*r/2 + 10};
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = W*dpr; cv.height = H*dpr;
+  cv.style.width = W+"px"; cv.style.height = H+"px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+const cen = rid => { const c = rid % S.map.w, rw = (rid/S.map.w)|0, g = geom;
+  return [g.x0 + c*1.5*g.r, g.y0 + rw*Math.sqrt(3)*g.r + (c%2)*Math.sqrt(3)*g.r/2]; };
+function hex(x,y,r){ ctx.beginPath();
+  for (let i=0;i<6;i++){ const a=Math.PI/3*i, px=x+r*Math.cos(a), py=y+r*Math.sin(a);
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py); } ctx.closePath(); }
+function pickAt(mx,my){ return pick(mx,my,true); }
+function pick(mx,my,loose){ if (!S||!geom) return -1;
+  let best=-1,bd=1e9;
+  for (let i=0;i<S.map.terrain.length;i++){ const [x,y]=cen(i), d=(x-mx)**2+(y-my)**2;
+    if (d<bd){bd=d;best=i;} }
+  return bd <= geom.r*geom.r*(loose?1.4:1) ? best : -1; }
+
+function draw(){
+  if (!S || !geom) return;
+  const r = geom.r, reg = {}; S.regions.forEach(x => reg[x.id]=x);
+  const vis = new Set(S.visible);
+  const goal = S.objective ? S.objective.target : -1;
+  ctx.clearRect(0,0,cv.width,cv.height);
+
+  for (let i=0;i<S.map.terrain.length;i++){
+    const [x,y]=cen(i), R=reg[i]||{}, t=S.map.terrain[i];
+    hex(x,y,r-1); ctx.fillStyle = FILL[t]||"#19212c"; ctx.fill();
+    if (R.owner === 0 || R.owner === 1){
+      ctx.fillStyle = R.owner===0 ? "rgba(90,169,230,.16)" : "rgba(224,103,90,.14)"; ctx.fill();
+    }
+    ctx.lineWidth=1.2;
+    ctx.strokeStyle = R.owner===0 ? "rgba(90,169,230,.5)" : R.owner===1 ? "rgba(224,103,90,.46)" : "#2b3846";
+    ctx.stroke();
+    if (!vis.has(i)){ hex(x,y,r-1); ctx.fillStyle="rgba(11,16,22,.55)"; ctx.fill(); }
+    if (t === "WATER" || t === "FORD"){
+      ctx.strokeStyle = t==="FORD" ? "#3b5f7d" : "#28415a"; ctx.lineWidth=1.5;
+      for (let k=-1;k<=1;k++){ ctx.beginPath();
+        ctx.moveTo(x-r*.4,y+k*r*.2); ctx.quadraticCurveTo(x,y+k*r*.2-r*.12,x+r*.4,y+k*r*.2);
+        ctx.stroke(); }
+      if (t === "FORD"){ ctx.fillStyle="#6d94b5"; ctx.font=Math.round(r*.2)+"px "+mono();
+        ctx.textAlign="center"; ctx.fillText("FORD", x, y+r*.55); }
+    }
+    if (t === "MOUNTAIN" || t === "HILL"){ ctx.strokeStyle="#4d5c6c"; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(x-r*.28,y+r*.16); ctx.lineTo(x,y-r*.2);
+      ctx.lineTo(x+r*.28,y+r*.16); ctx.stroke(); }
+    if (String(S.capitals[0])===String(i) || String(S.capitals[1])===String(i)){
+      const col = String(S.capitals[0])===String(i) ? SIDE_COL[0] : SIDE_COL[1];
+      hex(x,y,r*.8); ctx.strokeStyle=col; ctx.lineWidth=2.6; ctx.stroke();
+      ctx.fillStyle=col; ctx.font="600 "+Math.round(r*.22)+"px "+mono();
+      ctx.textAlign="center"; ctx.fillText("KEEP", x, y+r*.62);
+    }
+    if (i === goal){ hex(x,y,r-4); ctx.strokeStyle="#e6c45c"; ctx.lineWidth=3;
+      ctx.setLineDash([7,5]); ctx.stroke(); ctx.setLineDash([]); }
+  }
+
+  if (verb && needsTarget(verb)) reachable().forEach(i => {
+    const [x,y]=cen(i); hex(x,y,r-3);
+    ctx.fillStyle="rgba(201,162,39,.12)"; ctx.fill();
+    ctx.strokeStyle="rgba(230,196,92,.6)"; ctx.lineWidth=2;
+    ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]); });
+  if (hover>=0){ const [x,y]=cen(hover); hex(x,y,r-2);
+    ctx.strokeStyle="#e6c45c"; ctx.lineWidth=2; ctx.stroke(); }
+
+  // Supply, drawn as ground rather than a symbol. Everything inside this
+  // is fed; everything outside it starves. It is the single most important
+  // thing on the board, so it is the thing you see first.
+  const fed = new Set(S.supply||[]);
+  fed.forEach(i => { const [x,y]=cen(i);
+    hex(x,y,r-2); ctx.fillStyle="rgba(95,212,168,.09)"; ctx.fill(); });
+  fed.forEach(i => {
+    const [x,y]=cen(i);
+    S.map.terrain.forEach((_,j) => {});
+    // outline only the outer edge of the fed area, so it reads as a border
+    for (let k=0;k<6;k++){
+      const a1=Math.PI/3*k, a2=Math.PI/3*(k+1);
+      const mx=x+r*0.87*Math.cos((a1+a2)/2), my=y+r*0.87*Math.sin((a1+a2)/2);
+      const nb = pickAt(mx,my);
+      if (nb >= 0 && fed.has(nb)) continue;
+      ctx.beginPath();
+      ctx.moveTo(x+(r-2)*Math.cos(a1), y+(r-2)*Math.sin(a1));
+      ctx.lineTo(x+(r-2)*Math.cos(a2), y+(r-2)*Math.sin(a2));
+      ctx.strokeStyle="rgba(95,212,168,.55)"; ctx.lineWidth=2.4; ctx.stroke();
+    }
+  });
+
+  mine().forEach(b => { const o = orderOf(b.id);
+    if (o && o.target !== null && o.target !== undefined) arrow(b.region, o.target); });
+  S.brigades.forEach(unit);
+}
+const mono = () => "'IBM Plex Mono',monospace";
+
+function unit(b){
+  const [x,y]=cen(b.region), r=geom.r, col=SIDE_COL[b.side];
+  const w=Math.min(r*1.1,54), h=w*.56;
+  ctx.save();
+  if (b.mine && b.id === sel){
+    hex(x,y,r-2); ctx.strokeStyle="#e6c45c"; ctx.lineWidth=3; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.rect(x-w/2,y-h/2,w,h);
+  ctx.fillStyle="#0b1117"; ctx.fill();
+  ctx.lineWidth = b.supplied === false ? 3 : 2;
+  ctx.strokeStyle = b.supplied === false ? "#e8a13a" : col; ctx.stroke();
+  ctx.fillStyle=col; ctx.textAlign="center";
+  ctx.font="600 "+Math.round(h*.46)+"px "+mono();
+  ctx.fillText(String(b.strength), x+w*.28, y+h*.16);
+  ctx.font=Math.round(h*.32)+"px "+mono();
+  ctx.fillText((b.commander||b.kind).slice(0,5), x-w*.16, y+h*.14);
+  if (b.supplied === false){
+    ctx.fillStyle="#e8a13a"; ctx.font="600 "+Math.round(r*.19)+"px "+mono();
+    ctx.fillText("STARVING", x, y-h/2-r*.13);
+  }
+  ctx.restore();
+}
+function arrow(from,to){
+  const [ax,ay]=cen(from), [bx,by]=cen(to), r=geom.r;
+  const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L;
+  const sx=ax+ux*r*.5, sy=ay+uy*r*.5, ex=bx-ux*r*.5, ey=by-uy*r*.5;
+  ctx.save(); ctx.strokeStyle="#e6c45c"; ctx.fillStyle="#e6c45c";
+  ctx.lineWidth=3.4; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ex+ux*r*.22, ey+uy*r*.22);
+  ctx.lineTo(ex-uy*r*.14, ey+ux*r*.14); ctx.lineTo(ex+uy*r*.14, ey-ux*r*.14);
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+/* ---------------- side panel ---------------- */
+function panel(){
+  const box = $("brigades"); box.innerHTML = "";
+  mine().forEach(b => {
+    const o = orderOf(b.id);
+    const d = document.createElement("div");
+    d.className = "brig" + (b.id === sel ? " sel" : "");
+    const fed = b.supplied === false
+      ? '<span class="tag" style="color:var(--warn);background:rgba(232,161,58,.14)">STARVING −2</span>'
+      : '<span class="tag" style="color:var(--green);background:rgba(95,212,168,.12)">FED</span>';
+    const g = ((S.guide||[]).find(x => x.kind === b.kind)) || {};
+    d.innerHTML = '<div class="top"><span class="nm">' + (g.name || b.commander)
+      + '</span>' + fed + '<span class="str">' + b.strength
+      + '<span style="font-size:11px;color:var(--dim2)"> / ' + (b.max||g.strength||b.strength)
+      + '</span></span></div>'
+      + '<div class="stats"><span>MOVES <b>' + (g.moves||1) + '</b></span>'
+      + '<span>ATTACK <b>' + (g.attack||"?") + '</b></span>'
+      + '<span>DEFEND <b>' + (g.defend||"?") + '</b></span></div>'
+      + '<div class="sub"><b>' + (g.is||"") + '</b> ' + (g.does||"") + '</div>'
+      + '<div class="ord" style="color:' + (o ? "var(--brass2)" : "var(--dim2)") + '">'
+      + (o ? label(o.verb) + (o.target !== null && o.target !== undefined
+             ? " → region " + o.target : "") : "no order yet") + '</div>';
+    d.onclick = () => { sel = b.id; verb = null; orderBar(); panel(); draw(); };
+    box.appendChild(d);
+  });
+
+  const a = $("advice"); a.innerHTML = "";
+  const items = [].concat(S.warnings||[], S.coach||[]).slice(0,4);
+  if (!items.length){
+    a.innerHTML = '<div class="note note">' + (S.lesson ? S.lesson.teach
+      : "Keep your brigades within three regions of a keep or depot.") + '</div>';
+  } else items.forEach(n => {
+    const d = document.createElement("div");
+    d.className = "note " + n.level;
+    d.textContent = (n.commander ? n.commander + ": " : "") + n.text;
+    a.appendChild(d);
+  });
+
+  const rb = $("rulesBox");
+  if (rb.childElementCount === 0 && S.rules){
+    S.rules.forEach(r => {
+      const d = document.createElement("div");
+      d.className = "rl";
+      d.innerHTML = "<b>" + r.head + "</b>" + r.body;
+      rb.appendChild(d);
+    });
+  }
+}
+const describe = k => ({
+  LINE:"Foot. Tough and slow. Takes ground and keeps it.",
+  HORSE:"Horse. Moves two regions. Fast, but weak standing still.",
+  PIONEERS:"Engineers. Build depots so the others can reach further.",
+  GUNS:"Guns. Hits hardest, eats the most supply.",
+  LIGHT:"Light. Sees furthest, fights worst."
+}[k] || k);
+const label = v => { const m = (S && S.orderMenu) || [];
+  const f = m.find(o => o.verb === v); return f ? f.label : v; };
+const needsTarget = v => { const m = (S && S.orderMenu) || [];
+  const f = m.find(o => o.verb === v); return f ? f.needsTarget : true; };
+
+/* ---------------- orders ---------------- */
+function orderBar(){
+  const bar = $("orders"); bar.innerHTML = "";
+  const menu = (S && S.orderMenu) || [];
+  const b = mine().find(x => x.id === sel);
+  const locked = !S || S.phase !== "planning" || S.committed || !b;
+  menu.forEach(o => {
+    const el = document.createElement("button");
+    el.className = "ord" + (verb === o.verb ? " on" : "");
+    el.disabled = locked || (o.verb === "SUPPLY" && b && b.kind !== "PIONEERS");
+    el.innerHTML = '<div class="k">' + o.label + '</div><div class="d">' + o.blurb + '</div>';
+    el.onclick = () => choose(o.verb);
+    bar.appendChild(el);
+  });
+  $("go").disabled = !S || S.phase !== "planning" || S.committed;
+  const waiting = mine().filter(b => !orderOf(b.id)).length;
+  $("go").innerHTML = S && S.committed ? "…"
+    : (waiting ? "GO<div style='font-size:9px;letter-spacing:1px;margin-top:3px;opacity:.7'>"
+        + waiting + " will hold</div>" : "GO");
+}
+function choose(v){
+  verb = v;
+  if (!needsTarget(v)){ tx({t:"order", brigade:sel, verb:v}); verb = null;
+    say(label(v) + " ordered"); }
+  else say("now click where " + (mine().find(b=>b.id===sel)||{}).commander + " should go");
+  orderBar(); draw();
+}
+function reachable(){
+  const b = mine().find(x => x.id === sel); if (!b || !S) return [];
+  const pace = b.kind === "HORSE" ? 2 : 1, out = [];
+  for (let i=0;i<S.map.terrain.length;i++){
+    if (i === b.region) continue;
+    if (["WATER","MOUNTAIN"].includes(S.map.terrain[i])) continue;
+    if (dist(b.region,i) <= pace) out.push(i);
+  }
+  return out;
+}
+function dist(a,b){ const W=S.map.w;
+  const cube = i => { const c=i%W, r=(i/W)|0, x=c, z=r-(c-(c&1))/2; return [x,-x-z,z]; };
+  const A=cube(a), B=cube(b);
+  return Math.max(Math.abs(A[0]-B[0]),Math.abs(A[1]-B[1]),Math.abs(A[2]-B[2])); }
+function say(t){ const e=$("say"); e.textContent=t; e.classList.add("on");
+  clearTimeout(say.t); say.t=setTimeout(()=>e.classList.remove("on"), 2600); }
+
+function finish(){
+  const won = S.winner === 0;
+  $("veil").classList.remove("off");
+  $("card").innerHTML = '<h1>' + (won ? "THE KEEP IS YOURS" : "NOT THIS TIME") + '</h1>'
+    + '<p>' + (S.verdict || "") + '</p>'
+    + '<div id="rules">' + ((S.coach||[]).map(n =>
+        '<div class="rule"><span class="num">·</span><span>' + n.text + '</span></div>'
+      ).join("") || "") + '</div>'
+    + '<div class="row"><button class="btn" id="again">PLAY AGAIN</button>'
+    + '<button class="btn ghost" id="lessons">RUN THE LESSONS</button></div>';
+  $("again").onclick = () => location.reload();
+  $("lessons").onclick = () => { lessonAt = 0; location.reload(); };
+}
+
+/* ---------------- input ---------------- */
+cv.addEventListener("mousemove", e => { const r=cv.getBoundingClientRect();
+  const h=pick(e.clientX-r.left, e.clientY-r.top);
+  if (h!==hover){ hover=h; draw(); } });
+cv.addEventListener("mouseleave", ()=>{ hover=-1; draw(); });
+cv.addEventListener("click", e => {
+  const r = cv.getBoundingClientRect();
+  const rid = pick(e.clientX-r.left, e.clientY-r.top);
+  if (rid < 0) return;
+  const here = mine().find(b => b.region === rid);
+  if (here && !verb){ sel = here.id; panel(); draw(); return; }
+  if (!verb){ say("pick an order first"); return; }
+  tx({t:"order", brigade:sel, verb:verb, target:rid});
+  verb = null; orderBar(); draw();
+});
+$("go").onclick = () => tx({t:"commit"});
+window.addEventListener("resize", ()=>{ layout(); draw(); });
+window.addEventListener("keydown", e => {
+  if (!S || S.phase !== "planning") return;
+  const menu = S.orderMenu || [];
+  const n = parseInt(e.key,10);
+  if (n>=1 && n<=menu.length) choose(menu[n-1].verb);
+  if (e.key === "Enter") tx({t:"commit"});
+  if (e.key === "Escape"){ verb=null; orderBar(); draw(); }
+  if (e.key === "Tab"){ e.preventDefault();
+    const m = mine(); const i = m.findIndex(b=>b.id===sel);
+    sel = m[(i+1) % m.length].id; panel(); draw(); }
+});
+
+let lessonAt = null;
+$("learnBtn").onclick = () => { lessonAt = 0;
+  tx({t:"host", mode:"skirmish", lesson:0, name:"YOU"}); };
+$("playBtn").onclick = () => tx({t:"host", mode:"skirmish", name:"YOU"});
+connect();
+</script>
+</body>
+</html>

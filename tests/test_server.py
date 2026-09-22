@@ -131,7 +131,9 @@ class TestHandshake(ServerCase):
         head, body = run(go())
         self.assertIn(b"200 OK", head)
         self.assertIn(b"text/html", head)
-        self.assertIn(b"THE IRON COMPACT", body)
+        # the front door is TIDE now; the wargame moved to /skirmish.html
+        self.assertIn(b"<title>Tide</title>", body)
+        self.assertIn(b"<canvas", body)
 
     def test_refuses_to_walk_out_of_the_web_directory(self):
         async def go():
