@@ -10,19 +10,40 @@ python3 server.py          # then open http://localhost:8000
 
 Press **TEACH ME** for three short lessons, or **JUST PLAY**.
 
-## The three rules
+**There is no clock.** Solo is you against the machine, so nothing waits:
+click a brigade, pick an order, click where you mean it, press **GO**, and
+the round resolves at once — yours and the enemy's together.
 
-1. **Click a brigade, pick an order, click where you mean it.** Then COMMIT.
-   Every order happens at the same moment — yours and theirs together.
-2. **Stay in supply.** A brigade more than three regions from your keep, or
-   from a depot your engineers built, loses 2 strength a round and dies
-   without anyone fighting it. The green dots on the map are the regions you
-   can be fed in. *This is what kills people.*
-3. **Attack together.** Two brigades attacking the same region in the same
-   round arrive as one column and hit for +4. One alone usually bounces.
+## Your three brigades
+
+| | Strength | Moves | Attack | Defend | What it is for |
+|---|---|---|---|---|---|
+| **FOOT** | 12 | 1 | full | strong | Your hammer. The only brigade that can take ground and still be standing on it next round. |
+| **HORSE** | 7 | 2 | fair | poor | Your speed. Two regions a round — gets behind them and takes empty ground. Never leave it somewhere it has to defend. |
+| **ENGINEERS** | 5 | 1 | weak | fair | Your range. BUILD puts a depot under its feet, and a depot feeds 3 regions around it. |
+
+## The rules, with the actual numbers
+
+1. **Supply keeps you alive.** Every brigade must be within **3 regions** of
+   your KEEP or of a DEPOT. The **shaded green ground** on the map is exactly
+   where you are fed.
+2. **Outside it you starve.** A brigade out of supply loses **2 strength**
+   every round and nobody has to fight it. At 0 it is gone for good. *This is
+   what kills people.*
+3. **Engineers extend the map.** BUILD drops a depot where they stand —
+   including outside your supply. The shaded ground grows 3 regions around
+   it, and the army can go further. Leapfrogging depots forward is the whole
+   strategy.
+4. **Two at once is worth +4.** Two brigades attacking the same region in the
+   same round arrive as one column. One alone against a dug-in defender
+   usually bounces.
+5. **DIG IN is not a wasted round.** Fed and dug in, a brigade recovers
+   strength and is much harder to shift.
 
 Four orders: **MARCH**, **ATTACK**, **DIG IN**, **BUILD** (engineers only).
-Keys 1–4, Tab switches brigade, Enter commits.
+Keys 1–4, Tab switches brigade, Enter is GO. Every one of these numbers is
+served to the browser from `engine/constants.py`, so what the screen says and
+what the engine does cannot drift apart.
 
 ## The full campaign
 

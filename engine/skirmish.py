@@ -19,7 +19,8 @@ Everything here is a setup, not a rule. The resolution is the same
 """
 from .constants import (LINE, HORSE, PIONEERS, ADVANCE, ASSAULT, HOLD, SUPPLY,
                         PLAIN, WOOD, HILL, FORD, WATER, MOUNTAIN,
-                        AZURE, CRIMSON)
+                        AZURE, CRIMSON, BRIGADE_STATS, SUPPLY_RANGE,
+                        STARVE_LOSS, CONCENTRATION_BONUS)
 from .hexmap import HexMap
 from .state import Brigade, Region, GameState
 
@@ -28,13 +29,13 @@ from .state import Brigade, Region, GameState
 # unlearned later.
 ORDERS = [
     {"verb": ADVANCE, "label": "MARCH",  "needsTarget": True,
-     "blurb": "Move to a neighbouring region."},
+     "blurb": "Move to next-door ground. Horse moves two."},
     {"verb": ASSAULT, "label": "ATTACK", "needsTarget": True,
-     "blurb": "Take a region the enemy is standing on."},
+     "blurb": "Take ground the enemy is on. Send two at once."},
     {"verb": HOLD,    "label": "DIG IN", "needsTarget": False,
-     "blurb": "Stay put. Harder to shift, and you recover strength."},
+     "blurb": "Stay put, dig in, recover strength."},
     {"verb": SUPPLY,  "label": "BUILD",  "needsTarget": False,
-     "blurb": "Engineers only: build a depot so your army can reach further."},
+     "blurb": "Engineers only. Depot here — feeds 3 regions around it."},
 ]
 ORDER_BY_VERB = {o["verb"]: o for o in ORDERS}
 
@@ -46,6 +47,79 @@ BRIGADES = (
     (HORSE, "HORSE"),        # fast, fragile, gets behind them
     (PIONEERS, "ENGINEERS"), # builds the depots that keep the other two alive
 )
+
+
+# Everything a player needs told to them in plain words, in one place, and
+# served to the client so the numbers on screen can never drift from the
+# numbers the engine actually uses.
+GUIDE = {
+    LINE: {
+        "name": "FOOT",
+        "is": "Your hammer.",
+        "does": "The only brigade that can take ground and still be standing "
+                "on it next round.",
+        "watch": "Slow. One region a round, so decide early where it is going.",
+    },
+    HORSE: {
+        "name": "HORSE",
+        "is": "Your speed.",
+        "does": "Two regions a round. Gets behind them, takes empty ground, "
+                "and arrives where you are not expected.",
+        "watch": "Weak standing still. Do not leave it somewhere it has to "
+                 "defend.",
+    },
+    PIONEERS: {
+        "name": "ENGINEERS",
+        "is": "Your range.",
+        "does": "BUILD puts a depot under its feet. A depot feeds everything "
+                "within 3 regions of it, so this is how your army gets "
+                "further than 3 regions from home.",
+        "watch": "Barely fights. Keep it behind the other two.",
+    },
+}
+
+
+def guide(state=None):
+    """Brigade cards, with the live numbers from the engine."""
+    out = []
+    for kind, name in BRIGADES:
+        st = BRIGADE_STATS[kind]
+        g = GUIDE[kind]
+        out.append({
+            "kind": kind, "name": g["name"], "strength": st["strength"],
+            "moves": st["pace"],
+            "attack": ("full" if st["punch"] >= 1.0
+                       else "weak" if st["punch"] < 0.6 else "fair"),
+            "defend": ("strong" if st["guard"] >= 1.2
+                       else "poor" if st["guard"] <= 0.6 else "fair"),
+            "is": g["is"], "does": g["does"], "watch": g["watch"],
+        })
+    return out
+
+
+def rules():
+    """The three rules, with the engine's own numbers in them."""
+    return [
+        {"head": "Supply keeps you alive",
+         "body": "Every brigade must be within %d regions of your KEEP, or of "
+                 "a DEPOT. The shaded ground on the map is where you are fed."
+                 % SUPPLY_RANGE},
+        {"head": "Outside it you starve",
+         "body": "A brigade out of supply loses %d strength every round and "
+                 "nobody has to fight it. At 0 it is gone for good."
+                 % STARVE_LOSS},
+        {"head": "Engineers extend the map",
+         "body": "BUILD drops a depot where the engineers stand — including "
+                 "outside your supply. The shaded ground grows %d regions "
+                 "around it, and your army can go further." % SUPPLY_RANGE},
+        {"head": "Two at once is worth +%g" % CONCENTRATION_BONUS,
+         "body": "Two brigades that ATTACK the same region in the same round "
+                 "arrive as one column. One alone against a dug-in defender "
+                 "usually bounces off."},
+        {"head": "DIG IN to recover",
+         "body": "A brigade that digs in while fed recovers strength and is "
+                 "much harder to shift. It is not a wasted round."},
+    ]
 
 
 def _terrain(seed):

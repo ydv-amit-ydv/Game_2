@@ -29,8 +29,8 @@ button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
   letter-spacing:.4px;color:var(--brass2)}
 #goalSub{font-family:var(--mono);font-size:11.5px;letter-spacing:1.3px;color:var(--dim)}
 #clock{margin-left:auto;display:flex;align-items:center;gap:12px}
-#timer{font-family:var(--mono);font-size:26px;font-weight:600;
-  font-variant-numeric:tabular-nums;min-width:56px;text-align:right}
+#timer{font-family:var(--mono);font-size:22px;font-weight:600;
+  font-variant-numeric:tabular-nums;text-align:right;color:var(--text)}
 #phase{font-family:var(--mono);font-size:10.5px;letter-spacing:2px;color:var(--brass)}
 
 /* ---------- the board ---------- */
@@ -56,11 +56,19 @@ canvas{display:block}
 .brig .nm{font-family:var(--serif);font-size:17px;font-weight:600}
 .brig .str{margin-left:auto;font-family:var(--mono);font-size:16px;font-weight:600;
   color:var(--az)}
-.brig .sub{font-size:12px;color:var(--dim);margin-top:3px}
+.brig .sub{font-size:11.5px;color:var(--dim);margin-top:5px;line-height:1.45}
+.brig .sub b{color:var(--text)}
+.brig .stats{display:flex;gap:12px;margin-top:5px;font-family:var(--mono);
+  font-size:8.5px;letter-spacing:1px;color:var(--dim2)}
+.brig .stats b{color:var(--az);font-size:10px}
 .brig .ord{font-family:var(--mono);font-size:10.5px;letter-spacing:1.2px;margin-top:6px}
 .tag{font-family:var(--mono);font-size:9px;letter-spacing:1px;padding:2px 6px;
   border-radius:3px}
 #advice{display:flex;flex-direction:column;gap:7px}
+#rulesBox{display:flex;flex-direction:column;gap:8px}
+.rl{font-size:11.5px;line-height:1.5;color:var(--dim)}
+.rl b{display:block;color:var(--brass2);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:1.2px;margin-bottom:2px}
 .note{font-size:12.5px;line-height:1.5;padding:9px 11px;border-radius:5px;
   border-left:3px solid var(--line2);background:rgba(255,255,255,.03);color:var(--dim)}
 .note.risk{border-left-color:var(--cr);color:#f0a79e;background:rgba(224,103,90,.1)}
@@ -106,6 +114,10 @@ canvas{display:block}
   font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:1.6px}
 .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--dim)}
 #err{color:var(--cr);font-size:13px;margin-top:12px;min-height:18px}
+.tp{background:var(--panel2);border:1px solid var(--line2);border-radius:7px;padding:11px 13px}
+.tn{font-family:var(--serif);font-size:17px;font-weight:600;color:var(--brass2)}
+.ts{font-family:var(--mono);font-size:10px;letter-spacing:1.1px;color:var(--az);margin-top:2px}
+.td{font-size:12.5px;color:var(--dim);margin-top:5px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -116,8 +128,8 @@ canvas{display:block}
       <div id="goalSub">—</div>
     </div>
     <div id="clock">
-      <span id="phase">PLANNING</span>
-      <span id="timer">—</span>
+      <span id="phase">YOUR MOVE</span>
+      <span id="timer">1 / 12</span>
     </div>
   </div>
 
@@ -128,6 +140,8 @@ canvas{display:block}
       <div id="brigades" style="display:flex;flex-direction:column;gap:8px"></div>
       <div class="hd" style="margin-top:6px">WHAT HAPPENED</div>
       <div id="advice"></div>
+      <div class="hd" style="margin-top:6px">HOW IT WORKS</div>
+      <div id="rulesBox"></div>
     </div>
   </div>
 
@@ -144,8 +158,8 @@ canvas{display:block}
        enemy keep before round twelve.</b> That is the whole game.</p>
     <div id="rules">
       <div class="rule"><span class="num">1</span><span><b>Click a brigade,
-        pick an order, click where you mean.</b> Then press COMMIT. Every
-        order happens at the same moment.</span></div>
+        pick an order, click where you mean.</b> Then press GO. There is no
+        clock — the round resolves the moment you are ready.</span></div>
       <div class="rule"><span class="num">2</span><span><b>Stay in supply.</b>
         A brigade more than three regions from your keep — or from a depot
         your engineers built — loses strength every round and dies without
@@ -153,6 +167,15 @@ canvas{display:block}
       <div class="rule"><span class="num">3</span><span><b>Attack together.</b>
         Two brigades attacking the same region in the same round arrive as one
         and hit much harder. One alone usually bounces off.</span></div>
+    </div>
+    <h2 style="margin-top:24px;font-size:17px">Your three brigades</h2>
+    <div id="troops" style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+      <div class="tp"><div class="tn">FOOT</div><div class="ts">12 strength · moves 1 · attacks full · defends strong</div>
+        <div class="td">Your hammer. The only brigade that can take ground and still be standing on it next round.</div></div>
+      <div class="tp"><div class="tn">HORSE</div><div class="ts">7 strength · moves 2 · attacks fair · defends poor</div>
+        <div class="td">Your speed. Two regions a round — gets behind them and takes empty ground. Do not leave it somewhere it has to defend.</div></div>
+      <div class="tp"><div class="tn">ENGINEERS</div><div class="ts">5 strength · moves 1 · barely fights</div>
+        <div class="td">Your range. BUILD puts a depot under its feet, and a depot feeds everything within 3 regions. This is how your army gets further than 3 regions from home.</div></div>
     </div>
     <div class="row">
       <button class="btn" id="learnBtn">TEACH ME — 3 SHORT LESSONS</button>
@@ -196,13 +219,14 @@ function onState(){
     $("goalSub").textContent = (S.lesson ? "LESSON — " + S.lesson.title.toUpperCase() + " · " : "")
       + o.detail.toUpperCase();
   }
-  $("phase").textContent = S.phase === "resolving" ? "ORDERS LANDING" : "PLANNING";
+  $("phase").textContent = S.phase === "resolving" ? "ORDERS LANDING" : "ROUND";
+  $("timer").textContent = S.round + " / " + (S.maxRoundsHere || 12);
   endsAt = Date.now() + S.seconds*1000;
-  if (S.phase === "planning" && S.seconds) planLen = Math.max(planLen, S.seconds);
   if (S.committed){ verb = null; }
   if (sel === null || !mine().some(b => b.id === sel)) sel = (mine()[0]||{}).id;
   if (S.over) finish();
-  layout(); draw(); panel(); orderBar(); runClock();
+  layout(); draw(); panel(); orderBar();
+  if (S.timed) runClock();
 }
 const mine = () => !S ? [] : S.brigades.filter(b => b.mine && (S.yourBrigades||[]).includes(b.id));
 const orderOf = id => (S && S.orders) ? S.orders[String(id)] : null;
@@ -236,11 +260,12 @@ const cen = rid => { const c = rid % S.map.w, rw = (rid/S.map.w)|0, g = geom;
 function hex(x,y,r){ ctx.beginPath();
   for (let i=0;i<6;i++){ const a=Math.PI/3*i, px=x+r*Math.cos(a), py=y+r*Math.sin(a);
     i?ctx.lineTo(px,py):ctx.moveTo(px,py); } ctx.closePath(); }
-function pick(mx,my){ if (!S||!geom) return -1;
+function pickAt(mx,my){ return pick(mx,my,true); }
+function pick(mx,my,loose){ if (!S||!geom) return -1;
   let best=-1,bd=1e9;
   for (let i=0;i<S.map.terrain.length;i++){ const [x,y]=cen(i), d=(x-mx)**2+(y-my)**2;
     if (d<bd){bd=d;best=i;} }
-  return bd <= geom.r*geom.r ? best : -1; }
+  return bd <= geom.r*geom.r*(loose?1.4:1) ? best : -1; }
 
 function draw(){
   if (!S || !geom) return;
@@ -288,10 +313,27 @@ function draw(){
   if (hover>=0){ const [x,y]=cen(hover); hex(x,y,r-2);
     ctx.strokeStyle="#e6c45c"; ctx.lineWidth=2; ctx.stroke(); }
 
-  // supply: a ring on every region your army can be fed in
-  (S.supply||[]).forEach(i => { const [x,y]=cen(i);
-    ctx.beginPath(); ctx.arc(x, y+r*.68, 2.6, 0, 7);
-    ctx.fillStyle="rgba(95,212,168,.75)"; ctx.fill(); });
+  // Supply, drawn as ground rather than a symbol. Everything inside this
+  // is fed; everything outside it starves. It is the single most important
+  // thing on the board, so it is the thing you see first.
+  const fed = new Set(S.supply||[]);
+  fed.forEach(i => { const [x,y]=cen(i);
+    hex(x,y,r-2); ctx.fillStyle="rgba(95,212,168,.09)"; ctx.fill(); });
+  fed.forEach(i => {
+    const [x,y]=cen(i);
+    S.map.terrain.forEach((_,j) => {});
+    // outline only the outer edge of the fed area, so it reads as a border
+    for (let k=0;k<6;k++){
+      const a1=Math.PI/3*k, a2=Math.PI/3*(k+1);
+      const mx=x+r*0.87*Math.cos((a1+a2)/2), my=y+r*0.87*Math.sin((a1+a2)/2);
+      const nb = pickAt(mx,my);
+      if (nb >= 0 && fed.has(nb)) continue;
+      ctx.beginPath();
+      ctx.moveTo(x+(r-2)*Math.cos(a1), y+(r-2)*Math.sin(a1));
+      ctx.lineTo(x+(r-2)*Math.cos(a2), y+(r-2)*Math.sin(a2));
+      ctx.strokeStyle="rgba(95,212,168,.55)"; ctx.lineWidth=2.4; ctx.stroke();
+    }
+  });
 
   mine().forEach(b => { const o = orderOf(b.id);
     if (o && o.target !== null && o.target !== undefined) arrow(b.region, o.target); });
@@ -343,9 +385,15 @@ function panel(){
     const fed = b.supplied === false
       ? '<span class="tag" style="color:var(--warn);background:rgba(232,161,58,.14)">STARVING −2</span>'
       : '<span class="tag" style="color:var(--green);background:rgba(95,212,168,.12)">FED</span>';
-    d.innerHTML = '<div class="top"><span class="nm">' + (b.commander||b.kind)
-      + '</span>' + fed + '<span class="str">' + b.strength + '</span></div>'
-      + '<div class="sub">' + describe(b.kind) + '</div>'
+    const g = ((S.guide||[]).find(x => x.kind === b.kind)) || {};
+    d.innerHTML = '<div class="top"><span class="nm">' + (g.name || b.commander)
+      + '</span>' + fed + '<span class="str">' + b.strength
+      + '<span style="font-size:11px;color:var(--dim2)"> / ' + (b.max||g.strength||b.strength)
+      + '</span></span></div>'
+      + '<div class="stats"><span>MOVES <b>' + (g.moves||1) + '</b></span>'
+      + '<span>ATTACK <b>' + (g.attack||"?") + '</b></span>'
+      + '<span>DEFEND <b>' + (g.defend||"?") + '</b></span></div>'
+      + '<div class="sub"><b>' + (g.is||"") + '</b> ' + (g.does||"") + '</div>'
       + '<div class="ord" style="color:' + (o ? "var(--brass2)" : "var(--dim2)") + '">'
       + (o ? label(o.verb) + (o.target !== null && o.target !== undefined
              ? " → region " + o.target : "") : "no order yet") + '</div>';
@@ -364,6 +412,16 @@ function panel(){
     d.textContent = (n.commander ? n.commander + ": " : "") + n.text;
     a.appendChild(d);
   });
+
+  const rb = $("rulesBox");
+  if (rb.childElementCount === 0 && S.rules){
+    S.rules.forEach(r => {
+      const d = document.createElement("div");
+      d.className = "rl";
+      d.innerHTML = "<b>" + r.head + "</b>" + r.body;
+      rb.appendChild(d);
+    });
+  }
 }
 const describe = k => ({
   LINE:"Foot. Tough and slow. Takes ground and keeps it.",
@@ -392,7 +450,10 @@ function orderBar(){
     bar.appendChild(el);
   });
   $("go").disabled = !S || S.phase !== "planning" || S.committed;
-  $("go").textContent = S && S.committed ? "SEALED" : "COMMIT";
+  const waiting = mine().filter(b => !orderOf(b.id)).length;
+  $("go").innerHTML = S && S.committed ? "…"
+    : (waiting ? "GO<div style='font-size:9px;letter-spacing:1px;margin-top:3px;opacity:.7'>"
+        + waiting + " will hold</div>" : "GO");
 }
 function choose(v){
   verb = v;

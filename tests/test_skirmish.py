@@ -145,6 +145,40 @@ class TestLessons(unittest.TestCase):
             self.assertTrue(s.over, "lesson %d never ended" % i)
 
 
+class TestExplaining(unittest.TestCase):
+    """A player should never have to guess what a brigade is or what the
+    supply rule says, and the numbers on screen must be the engine's."""
+
+    def test_every_brigade_has_a_card_with_real_numbers(self):
+        from engine.constants import BRIGADE_STATS
+        cards = skirmish.guide()
+        self.assertEqual(len(cards), 3)
+        for c in cards:
+            st = BRIGADE_STATS[c["kind"]]
+            self.assertEqual(c["strength"], st["strength"])
+            self.assertEqual(c["moves"], st["pace"])
+            for field in ("name", "is", "does", "watch", "attack", "defend"):
+                self.assertTrue(str(c[field]).strip(), "%s has no %s" % (c, field))
+
+    def test_the_rules_quote_the_engine_not_a_guess(self):
+        from engine.constants import (SUPPLY_RANGE, STARVE_LOSS,
+                                      CONCENTRATION_BONUS)
+        blob = " ".join(r["head"] + " " + r["body"] for r in skirmish.rules())
+        self.assertIn(str(SUPPLY_RANGE), blob)
+        self.assertIn(str(STARVE_LOSS), blob)
+        self.assertIn(str(int(CONCENTRATION_BONUS)), blob)
+
+    def test_the_rules_say_how_to_build_a_depot(self):
+        blob = " ".join(r["body"].lower() for r in skirmish.rules())
+        self.assertIn("build", blob)
+        self.assertIn("depot", blob)
+
+    def test_every_order_says_what_it_does(self):
+        for o in skirmish.ORDERS:
+            self.assertGreater(len(o["blurb"]), 20,
+                               "%s needs a real explanation" % o["label"])
+
+
 class TestSoloServer(ServerCase):
 
     def test_hosting_a_skirmish_gives_you_the_whole_side(self):
@@ -164,6 +198,67 @@ class TestSoloServer(ServerCase):
         self.assertEqual(len(st["orderMenu"]), 4)
         self.assertIsNotNone(st["objective"])
         self.assertTrue(st["supply"], "the supply range must be drawable")
+
+    def test_there_is_no_clock_to_wait_out(self):
+        """Solo is one person against the machine. A countdown is dead time."""
+        async def go():
+            srv, port = await self.boot()
+            ws = await WS.open(port)
+            await ws.send({"t": "host", "mode": "skirmish"})
+            await ws.until("joined")
+            st = await ws.until("state", phase="planning")
+            await ws.close()
+            srv.close()
+            return st
+        st = run(go())
+        self.assertFalse(st["timed"])
+        self.assertEqual(st["seconds"], 0)
+
+    def test_committing_resolves_the_round_at_once(self):
+        async def go():
+            srv, port = await self.boot()
+            server.PLAN_SECONDS = 999      # any wait would hang this test
+            ws = await WS.open(port)
+            await ws.send({"t": "host", "mode": "skirmish"})
+            await ws.until("joined")
+            await ws.until("state", phase="planning")
+            await ws.send({"t": "commit"})
+            st = await ws.until("state", timeout=3, round=2)
+            await ws.close()
+            srv.close()
+            return st
+        self.assertEqual(run(go())["round"], 2)
+
+    def test_the_client_is_told_the_brigades_and_the_rules(self):
+        async def go():
+            srv, port = await self.boot()
+            ws = await WS.open(port)
+            await ws.send({"t": "host", "mode": "skirmish"})
+            await ws.until("joined")
+            st = await ws.until("state", phase="planning")
+            await ws.close()
+            srv.close()
+            return st
+        st = run(go())
+        self.assertEqual(len(st["guide"]), 3)
+        self.assertGreaterEqual(len(st["rules"]), 3)
+        self.assertEqual(st["maxRoundsHere"], skirmish.SKIRMISH_ROUNDS)
+
+    def test_the_campaign_keeps_its_clock(self):
+        async def go():
+            srv, port = await self.boot()
+            ws = await WS.open(port)
+            await ws.send({"t": "host"})
+            await ws.until("joined")
+            await ws.until("state")
+            await ws.send({"t": "start"})
+            st = await ws.until("state", phase="planning")
+            await ws.close()
+            srv.close()
+            return st
+        st = run(go())
+        self.assertTrue(st["timed"], "the multiplayer game still needs a clock")
+        self.assertGreater(st["seconds"], 0)
 
     def test_it_starts_without_waiting_for_anybody(self):
         async def go():

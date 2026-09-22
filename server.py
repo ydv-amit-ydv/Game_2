@@ -273,6 +273,10 @@ def state_payload(room, seat, client=None):
         # is what made this game opaque, so it is drawn on the board.
         "supply": sorted(supply_map(room.state, side)),
         "orderMenu": skirmish.ORDERS if room.solo() else None,
+        "guide": skirmish.guide() if room.solo() else None,
+        "rules": skirmish.rules() if room.solo() else None,
+        "timed": not room.solo(),
+        "maxRoundsHere": room.state.max_rounds,
         "lesson": room.spec,
         "order": (seat.order.to_dict() if seat and seat.order else None),
         "committed": (all(s.committed for s in room.seats_of(client))
@@ -322,7 +326,10 @@ def push_state(room):
 # ------------------------------------------------------------------ the clock
 def begin_planning(room):
     room.phase = "planning"
-    room.ends_at = time.time() + (SKIRMISH_PLAN if room.solo() else PLAN_SECONDS)
+    # The small game is one person against the machine. There is nobody to
+    # wait for, so there is no clock -- the round resolves the instant you
+    # commit. A countdown here was pure dead time.
+    room.ends_at = 0.0 if room.solo() else time.time() + PLAN_SECONDS
     room.signal_budget = {}
     room.corps_notes = room.corps_notes
     for s in room.seats:
@@ -371,9 +378,15 @@ def run_round(room):
         room.coach_notes[side] = coach.explain(before, room.state, events,
                                                side, room.ledger)
 
-    room.phase = "over" if room.state.over else "resolving"
-    room.ends_at = time.time() + (0 if room.state.over else RESOLVE_SECONDS)
-    push_state(room)
+    if room.state.over:
+        room.phase, room.ends_at = "over", 0.0
+        push_state(room)
+    elif room.solo():
+        begin_planning(room)          # straight on, no interval to sit through
+    else:
+        room.phase = "resolving"
+        room.ends_at = time.time() + RESOLVE_SECONDS
+        push_state(room)
 
 
 async def clock(room):
@@ -393,6 +406,9 @@ async def clock(room):
                     ROOMS.pop(room.code, None)
                     return
                 continue
+
+            if room.solo():
+                continue        # driven entirely by the commit, not the clock
 
             now = time.time()
             if room.phase == "planning":
@@ -494,7 +510,10 @@ def handle(client, msg):
             if seat.order is None:
                 seat.order = Order(seat.brigade, "HOLD")
             seat.committed = True
-        push_state(room)
+        if room.solo():
+            run_round(room)             # resolve it now; nobody else to wait on
+        else:
+            push_state(room)
 
     elif t == "signal":
         seat = room.seat_of(client)
